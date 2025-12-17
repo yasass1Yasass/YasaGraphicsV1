@@ -1,401 +1,544 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Plus,
+  Trash2,
+  Save,
+  LayoutGrid,
+  Megaphone,
+  Image as ImageIcon,
+  Tag,
+  DollarSign,
+  ToggleLeft,
+  ToggleRight,
+} from "lucide-react";
 
-/** ---------- Types ---------- */
-type Category = "hiking" | "cycling" | "nature";
-type Difficulty = "Easy" | "Moderate" | "Challenging";
-
-type Tour = {
+type DesignItem = {
   id: string;
   title: string;
-  category: Category;
-  shortDescription: string;
-  longDescription: string;
-  durationDays: number;
-  location: string;
-  nextStartDate: string; // ISO (YYYY-MM-DD)
-  availableSlots: number;
-  priceGBP: number;
-  images: string[];
-  rating: number; // 0..5
-  difficulty: Difficulty;
-};
-
-type RentalItem = {
-  id: string;
-  title: string;
-  brand?: string;
   category: string;
-  dailyGBP: number;
-  depositGBP: number;
-  stock: number;
-  images: string[];
-  rating: number;
+  priceLKR: number;
+  img?: string; // URL/path
+  badge?: "Popular" | "New" | "Best Value" | "";
 };
 
-type AdminUser = {
+type AdItem = {
   id: string;
-  name: string;
-  email: string;
-  role: "admin" | "editor" | "viewer";
-  status: "active" | "suspended";
-  lastSeenISO: string;
+  text: string;
+  link?: string;
+  active: boolean;
 };
 
-type Auth = { name: string; email: string; role: "admin" | "editor" | "viewer" };
+const LS_KEYS = {
+  designs: "yasa_admin_designs_v1",
+  ads: "yasa_admin_ads_v1",
+};
 
-/** ---------- Utils ---------- */
-const cn = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
-const uid = (prefix = "id") => `${prefix}_${Math.random().toString(36).slice(2, 9)}${Date.now()}`;
+const CURRENCY = (n: number) =>
+  new Intl.NumberFormat("en-LK", {
+    style: "currency",
+    currency: "LKR",
+    maximumFractionDigits: 0,
+  }).format(n);
 
-function load<T>(key: string, fallback: T): T {
+const DEFAULT_DESIGNS: DesignItem[] = [
+  { id: "logo", title: "Logo Design", category: "Branding", priceLKR: 3500, badge: "Popular" },
+  { id: "smpost", title: "Social Media Post", category: "Social Media", priceLKR: 1200, badge: "Best Value" },
+  { id: "web", title: "Web Designs", category: "Web/UI", priceLKR: 15000, badge: "Popular" },
+];
+
+const DEFAULT_ADS: AdItem[] = [
+  { id: "ad-1", text: "🔥 New Year Offer: 10% OFF on Logo Design!", link: "#designs", active: true },
+  { id: "ad-2", text: "🎥 Get a 5s Logo Intro Animation — Starting from LKR 8,000", link: "#designs", active: true },
+];
+
+function uid(prefix = "id") {
+  return `${prefix}-${Math.random().toString(16).slice(2)}-${Date.now()}`;
+}
+
+function loadJSON<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
   } catch {
     return fallback;
   }
 }
-function save<T>(key: string, value: T) {
+
+function saveJSON<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-/** ---------- Reusable bits ---------- */
-function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <header className="mb-4">
-      <h2 className="text-xl font-extrabold bg-gradient-to-r from-emerald-700 via-emerald-600 to-indigo-600 bg-clip-text text-transparent">
-        {title}
-      </h2>
-      {subtitle && <p className="mt-1 text-neutral-600">{subtitle}</p>}
-    </header>
-  );
-}
-
-function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={cn(
-        "w-full rounded-xl border px-3 py-2 outline-none transition",
-        "border-emerald-300 bg-white/90 placeholder-neutral-500 focus:border-emerald-500",
-        props.className || ""
-      )}
-    />
-  );
-}
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-600/20">
-      {children}
-    </span>
-  );
-}
-
-/** ---------- Page ---------- */
 export default function Admin() {
-  const [stats, setStats] = useState({ tours: 0, rentals: 0, users: 0 });
+  const [tab, setTab] = useState<"designs" | "ads">("designs");
 
+  const [designs, setDesigns] = useState<DesignItem[]>([]);
+  const [ads, setAds] = useState<AdItem[]>([]);
+
+  // Forms
+  const [dTitle, setDTitle] = useState("");
+  const [dCategory, setDCategory] = useState("Branding");
+  const [dPrice, setDPrice] = useState<number>(3500);
+  const [dImg, setDImg] = useState("");
+  const [dBadge, setDBadge] = useState<DesignItem["badge"]>("");
+
+  const [adText, setAdText] = useState("");
+  const [adLink, setAdLink] = useState("");
+  const [adActive, setAdActive] = useState(true);
+
+  // Load from localStorage (once)
   useEffect(() => {
-    const tours = load<Tour[]>("custom_tours", []).length;
-    const rentals = load<RentalItem[]>("rental_items", []).length;
-    const users = load<AdminUser[]>("admin_users", seedUsers()).length;
-    setStats({ tours, rentals, users });
+    const storedDesigns = loadJSON<DesignItem[]>(LS_KEYS.designs, DEFAULT_DESIGNS);
+    const storedAds = loadJSON<AdItem[]>(LS_KEYS.ads, DEFAULT_ADS);
+    setDesigns(storedDesigns);
+    setAds(storedAds);
   }, []);
 
-  return (
-    <div className="space-y-8 px-4 sm:px-6">
-      {/* Header */}
-      <section className="rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-indigo-600 p-6 text-white ring-1 ring-black/10">
-        <div className="mx-auto max-w-7xl">
-          <h1 className="text-3xl font-extrabold tracking-tight">Admin Dashboard</h1>
-          <p className="mt-1 text-emerald-50">Quick actions on the left. Manage users in the main panel.</p>
+  // Backend URL (Vite env optional) — falls back to localhost:4000
+  const BACKEND = ((import.meta as any)?.env?.VITE_BACKEND_URL as string) || "http://localhost:4000";
 
-          {/* Tiny stats */}
-          <dl className="mt-4 grid grid-cols-3 gap-3 max-w-md">
-            <div className="rounded-xl bg-white/10 px-3 py-3 text-center ring-1 ring-white/20">
-              <dt className="text-xs text-emerald-50">Tours</dt>
-              <dd className="text-lg font-extrabold">{stats.tours}</dd>
-            </div>
-            <div className="rounded-xl bg-white/10 px-3 py-3 text-center ring-1 ring-white/20">
-              <dt className="text-xs text-emerald-50">Rentals</dt>
-              <dd className="text-lg font-extrabold">{stats.rentals}</dd>
-            </div>
-            <div className="rounded-xl bg-white/10 px-3 py-3 text-center ring-1 ring-white/20">
-              <dt className="text-xs text-emerald-50">Users</dt>
-              <dd className="text-lg font-extrabold">{stats.users}</dd>
-            </div>
-          </dl>
-        </div>
-      </section>
+  // Try to load persisted data from backend (if available)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${BACKEND}/api/data`);
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json.designs)) setDesigns(json.designs as DesignItem[]);
+          if (Array.isArray(json.ads)) setAds(json.ads as AdItem[]);
+        }
+      } catch (err) {
+        // ignore, fall back to localStorage
+      }
+    })();
+  }, []);
 
-      {/* Body */}
-      <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-12">
-        {/* LEFT SIDEBAR (Quick actions) */}
-        <aside className="lg:col-span-3 space-y-6">
-          <QuickActions />
-          <HelpCard />
-        </aside>
+  // Persist on changes
+  useEffect(() => saveJSON(LS_KEYS.designs, designs), [designs]);
+  useEffect(() => saveJSON(LS_KEYS.ads, ads), [ads]);
 
-        {/* MAIN (User management) */}
-        <main className="lg:col-span-9">
-          <UserManagement />
-        </main>
-      </div>
-    </div>
-  );
-}
+  const categories = useMemo(() => {
+    const base = new Set<string>(["Branding", "Animation", "Print", "Social Media", "Packaging", "Stationery", "Web/UI", "Video", "Merch", "Advertising"]);
+    designs.forEach((d) => base.add(d.category));
+    return Array.from(base);
+  }, [designs]);
 
-/** ---------- Left: Quick Actions ---------- */
-function QuickActions() {
-  const nav = useNavigate();
+  const addDesign = () => {
+    const title = dTitle.trim();
+    const category = dCategory.trim();
+    if (!title || !category || !Number.isFinite(dPrice)) return;
 
-  function logout() {
-    try {
-      localStorage.removeItem("admin_auth");
-    } catch {}
-    alert("Logged out (demo). Redirecting to login.");
-    nav("/login");
-  }
-
-  return (
-    <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
-      <SectionTitle title="Quick actions" />
-      <div className="grid gap-3">
-        <button
-          onClick={logout}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-rose-700"
-        >
-          {/* logout icon */}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="opacity-90">
-            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" stroke="currentColor" strokeWidth="1.8" />
-            <path d="M10 17l5-5-5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M15 12H3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          Log out
-        </button>
-
-        <Link
-          to="/admin/create/tour"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-700"
-          title="Go to the tour composer page"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" className="opacity-90" fill="none">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          Post Tour
-        </Link>
-
-        <Link
-          to="/admin/create/rental"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-indigo-700"
-          title="Go to the rental composer page"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" className="opacity-90" fill="none">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          Post Rental
-        </Link>
-
-        <Link
-          to="/tours"
-          className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 font-semibold text-emerald-700 ring-1 ring-emerald-300 transition hover:bg-emerald-50"
-        >
-          View site → Tours
-        </Link>
-        <Link
-          to="/rentals"
-          className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 font-semibold text-indigo-700 ring-1 ring-indigo-300 transition hover:bg-indigo-50"
-        >
-          View site → Rentals
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-function HelpCard() {
-  return (
-    <section className="rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-indigo-50 p-5 ring-1 ring-emerald-200">
-      <p className="text-sm text-neutral-700">
-        <strong>Heads up:</strong> This demo uses <code>localStorage</code>. The “Post Tour” and “Post Rental” links
-        assume you’ll add composer pages later.
-      </p>
-    </section>
-  );
-}
-
-/** ---------- Main: User Management (no filters; admin-only editing) ---------- */
-function seedUsers(): AdminUser[] {
-  return [
-    {
-      id: uid("usr"),
-      name: "Alex Morgan",
-      email: "alex@example.com",
-      role: "admin",
-      status: "active",
-      lastSeenISO: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: uid("usr"),
-      name: "Samir Patel",
-      email: "samir@example.com",
-      role: "editor",
-      status: "active",
-      lastSeenISO: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: uid("usr"),
-      name: "Maya Chen",
-      email: "maya@example.com",
-      role: "viewer",
-      status: "suspended",
-      lastSeenISO: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
-}
-
-function UserManagement() {
-  const [users, setUsers] = useState<AdminUser[]>(() => load<AdminUser[]>("admin_users", seedUsers()));
-  const me = load<Auth>("admin_auth", { name: "Demo Admin", email: "admin@example.com", role: "admin" });
-  const isAdmin = me.role === "admin";
-
-  useEffect(() => save("admin_users", users), [users]);
-
-  // No filters: just sort by name for stable display
-  const list = useMemo(() => [...users].sort((a, b) => a.name.localeCompare(b.name)), [users]);
-
-  function modify(u: AdminUser) {
-    if (!isAdmin) return alert("Only admins can modify users.");
-    const name = prompt("Edit name:", u.name);
-    if (name === null) return;
-    const email = prompt("Edit email:", u.email);
-    if (email === null) return;
-    // Keep role/status unchanged in this simplified editor
-    updateUser(u.id, { name: name.trim(), email: email.trim() });
-  }
-
-  function remove(u: AdminUser) {
-    if (!isAdmin) return alert("Only admins can delete users.");
-    if (!confirm(`Delete ${u.name}?`)) return;
-    setUsers(prev => prev.filter(x => x.id !== u.id));
-  }
-
-  function invite() {
-    if (!isAdmin) return alert("Only admins can invite users.");
-    const name = prompt("New user name:");
-    if (!name) return;
-    const email = prompt("Email:");
-    if (!email) return;
-    const u: AdminUser = {
-      id: uid("usr"),
-      name: name.trim(),
-      email: email.trim(),
-      role: "viewer", // default minimal permissions
-      status: "active",
-      lastSeenISO: new Date().toISOString(),
+    const newItem: DesignItem = {
+      id: uid("design"),
+      title,
+      category,
+      priceLKR: Math.max(0, Math.floor(dPrice)),
+      img: dImg.trim() || undefined,
+      badge: dBadge || "",
     };
-    setUsers(prev => [u, ...prev]);
-  }
 
-  function updateUser(id: string, patch: Partial<AdminUser>) {
-    setUsers(prev => prev.map(u => (u.id === id ? { ...u, ...patch } : u)));
-  }
+    setDesigns((prev) => [newItem, ...prev]);
+    setDTitle("");
+    setDImg("");
+    setDBadge("");
+  };
+
+  const deleteDesign = (id: string) => {
+    setDesigns((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const addAd = () => {
+    const text = adText.trim();
+    if (!text) return;
+
+    const newAd: AdItem = {
+      id: uid("ad"),
+      text,
+      link: adLink.trim() || undefined,
+      active: adActive,
+    };
+
+    setAds((prev) => [newAd, ...prev]);
+    setAdText("");
+    setAdLink("");
+    setAdActive(true);
+  };
+
+  const toggleAd = (id: string) => {
+    setAds((prev) => prev.map((a) => (a.id === id ? { ...a, active: !a.active } : a)));
+  };
+
+  const deleteAd = (id: string) => {
+    setAds((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const resetDemoData = () => {
+    setDesigns(DEFAULT_DESIGNS);
+    setAds(DEFAULT_ADS);
+  };
+
+  // Sync current data to backend (best-effort)
+  const syncToServer = async () => {
+    try {
+      await fetch(`${BACKEND}/api/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ designs, ads }),
+      });
+      return true;
+    } catch (err) {
+      console.warn("Failed to sync to server", err);
+      return false;
+    }
+  };
 
   return (
-    <section className="rounded-2xl bg-white p-6 ring-1 ring-black/5">
-      <SectionTitle title="User management" subtitle="Only admins can modify or delete users." />
+    <div className="min-h-screen bg-[#0b0708] text-white">
+      {/* Top Bar */}
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-black/40 backdrop-blur-xl">
+        <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-sm md:text-base font-extrabold">
+              Admin Panel <span className="text-[#f7b500]">• Yasa Graphics</span>
+            </h1>
+            <p className="text-xs text-white/60 mt-1">
+              Manage design listings + scrolling ads (no users).
+            </p>
+          </div>
 
-      <div className="mt-0 flex flex-wrap gap-2">
-        <button
-          onClick={invite}
-          className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-700"
-          disabled={!isAdmin}
-          title={isAdmin ? "Invite a new user" : "Admin only"}
-        >
-          Invite user
-        </button>
-        <Link
-          to="/settings"
-          className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-300 transition hover:bg-emerald-50"
-        >
-          Admin settings
-        </Link>
-      </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={resetDemoData}
+              className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10 transition"
+              title="Reset demo data"
+            >
+              Reset Demo
+            </button>
+            <button
+              onClick={async () => {
+                // try sync to server first, then always save to localStorage as fallback
+                try {
+                  await syncToServer();
+                } catch {}
+                saveJSON(LS_KEYS.designs, designs);
+                saveJSON(LS_KEYS.ads, ads);
+              }}
+              className="rounded-md bg-[#f7b500] px-3 py-2 text-xs font-extrabold text-black hover:brightness-95 transition inline-flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" /> Save
+            </button>
+          </div>
+        </div>
+      </header>
 
-      {/* Table (no filters, minimal actions) */}
-      <div className="mt-4 overflow-hidden rounded-xl ring-1 ring-emerald-200">
-        <table className="min-w-full divide-y divide-emerald-100">
-          <thead className="bg-emerald-50">
-            <tr>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-neutral-700">User</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-neutral-700">Role</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-neutral-700">Status</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold text-neutral-700">Last seen</th>
-              <th className="px-4 py-2 text-right text-xs font-semibold text-neutral-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-emerald-100 bg-white">
-            {list.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-neutral-600">
-                  No users yet.
-                </td>
-              </tr>
-            )}
-            {list.map((u) => (
-              <tr key={u.id} className="hover:bg-emerald-50/40">
-                {/* Profile column */}
-                <td className="px-4 py-3">
-                  <p className="font-semibold text-neutral-900">{u.name}</p>
-                  <p className="text-xs text-neutral-600">{u.email}</p>
-                </td>
-                <td className="px-4 py-3">
-                  <Chip>{u.role}</Chip>
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
-                      u.status === "active"
-                        ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-600/20"
-                        : "bg-amber-100 text-amber-800 ring-1 ring-amber-600/20"
-                    )}
-                  >
-                    {u.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-sm text-neutral-700">
-                  {new Date(u.lastSeenISO).toLocaleString()}
-                </td>
+      {/* Main */}
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        {/* Tabs */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setTab("designs")}
+            className={`rounded-full px-4 py-2 text-xs font-extrabold transition inline-flex items-center gap-2
+              ${tab === "designs" ? "bg-[#f7b500] text-black" : "bg-white/5 border border-white/10 text-white hover:bg-white/10"}`}
+          >
+            <LayoutGrid className="w-4 h-4" /> Design Listings
+          </button>
 
-                {/* Actions: ONLY Modify & Delete */}
-                <td className="px-4 py-3">
-                  <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setTab("ads")}
+            className={`rounded-full px-4 py-2 text-xs font-extrabold transition inline-flex items-center gap-2
+              ${tab === "ads" ? "bg-[#f7b500] text-black" : "bg-white/5 border border-white/10 text-white hover:bg-white/10"}`}
+          >
+            <Megaphone className="w-4 h-4" /> Scrolling Ads
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          {/* Left: Form */}
+          <section className="lg:col-span-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
+              {tab === "designs" ? (
+                <>
+                  <h2 className="text-sm font-extrabold text-[#f7b500]">Add Design Listing</h2>
+                  <p className="text-xs text-white/60 mt-1">Create a new service item for Designs page.</p>
+
+                  <div className="mt-4 space-y-3">
+                    <label className="block">
+                      <span className="text-xs text-white/70">Title</span>
+                      <input
+                        value={dTitle}
+                        onChange={(e) => setDTitle(e.target.value)}
+                        placeholder="e.g., Logo Design"
+                        className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-xs text-white/70">Category</span>
+                      <div className="mt-1 flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+                        <Tag className="w-4 h-4 text-[#f7b500]" />
+                        <select
+                          value={dCategory}
+                          onChange={(e) => setDCategory(e.target.value)}
+                          className="w-full bg-transparent text-sm outline-none"
+                        >
+                          {categories.map((c) => (
+                            <option key={c} value={c} className="bg-[#0b0708]">
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-xs text-white/70">Starting Price (LKR)</span>
+                      <div className="mt-1 flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+                        <DollarSign className="w-4 h-4 text-[#f7b500]" />
+                        <input
+                          type="number"
+                          value={dPrice}
+                          onChange={(e) => setDPrice(Number(e.target.value))}
+                          className="w-full bg-transparent text-sm outline-none"
+                        />
+                      </div>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-xs text-white/70">Image URL (optional)</span>
+                      <div className="mt-1 flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+                        <ImageIcon className="w-4 h-4 text-[#f7b500]" />
+                        <input
+                          value={dImg}
+                          onChange={(e) => setDImg(e.target.value)}
+                          placeholder="https://... or /assets/..."
+                          className="w-full bg-transparent text-sm outline-none"
+                        />
+                      </div>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-xs text-white/70">Badge (optional)</span>
+                      <select
+                        value={dBadge}
+                        onChange={(e) => setDBadge(e.target.value as DesignItem["badge"])}
+                        className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none"
+                      >
+                        <option value="" className="bg-[#0b0708]">None</option>
+                        <option value="Popular" className="bg-[#0b0708]">Popular</option>
+                        <option value="New" className="bg-[#0b0708]">New</option>
+                        <option value="Best Value" className="bg-[#0b0708]">Best Value</option>
+                      </select>
+
+                    </label>
+
                     <button
-                      onClick={() => modify(u)}
-                      className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                      disabled={!isAdmin}
-                      title={isAdmin ? "Modify user (name/email)" : "Admin only"}
+                      onClick={addDesign}
+                      className="w-full rounded-lg bg-[#f7b500] px-4 py-2 text-sm font-extrabold text-black hover:brightness-95 transition inline-flex items-center justify-center gap-2"
                     >
-                      Modify
+                      <Plus className="w-4 h-4" /> Add Listing
                     </button>
+
+                    <p className="text-[11px] text-white/50">
+                      Tip: Later you can connect this to a database/API. For now it saves in your browser storage.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-sm font-extrabold text-[#f7b500]">Add Scrolling Advertisement</h2>
+                  <p className="text-xs text-white/60 mt-1">These can be used in a home page marquee/slider.</p>
+
+                  <div className="mt-4 space-y-3">
+                    <label className="block">
+                      <span className="text-xs text-white/70">Ad Text</span>
+                      <input
+                        value={adText}
+                        onChange={(e) => setAdText(e.target.value)}
+                        placeholder="e.g., 10% OFF on Logo Design!"
+                        className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-xs text-white/70">Link (optional)</span>
+                      <input
+                        value={adLink}
+                        onChange={(e) => setAdLink(e.target.value)}
+                        placeholder="e.g., #designs or https://..."
+                        className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none"
+                      />
+                    </label>
+
+                    <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+                      <span className="text-xs text-white/70">Active</span>
+                      <button
+                        onClick={() => setAdActive((v) => !v)}
+                        className="inline-flex items-center gap-2 text-xs font-semibold"
+                        type="button"
+                      >
+                        {adActive ? (
+                          <>
+                            <ToggleRight className="w-5 h-5 text-[#f7b500]" /> On
+                          </>
+                        ) : (
+                          <>
+                            <ToggleLeft className="w-5 h-5 text-white/60" /> Off
+                          </>
+                        )}
+                      </button>
+                    </label>
+
                     <button
-                      onClick={() => remove(u)}
-                      className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-                      disabled={!isAdmin}
-                      title={isAdmin ? "Delete user" : "Admin only"}
+                      onClick={addAd}
+                      className="w-full rounded-lg bg-[#f7b500] px-4 py-2 text-sm font-extrabold text-black hover:brightness-95 transition inline-flex items-center justify-center gap-2"
                     >
-                      Delete
+                      <Plus className="w-4 h-4" /> Add Ad
                     </button>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+                </>
+              )}
+            </div>
+          </section>
+
+          {/* Right: Listing table/cards */}
+          <section className="lg:col-span-8">
+            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
+              {tab === "designs" ? (
+                <>
+                  <h2 className="text-sm font-extrabold text-[#f7b500]">Design Listings</h2>
+                  <p className="text-xs text-white/60 mt-1">
+                    Items shown on your Designs page. Total: {designs.length}
+                  </p>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    {designs.map((d) => (
+                      <div
+                        key={d.id}
+                        className="rounded-2xl border border-[#f7b500]/20 bg-white/[0.06] backdrop-blur-xl overflow-hidden"
+                      >
+                        <div className="h-28 bg-black/40 relative">
+                          {d.img ? (
+                            <img src={d.img} alt={d.title} className="h-full w-full object-cover opacity-90" />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center text-xs text-white/50">
+                              No image
+                            </div>
+                          )}
+                          {d.badge ? (
+                            <span className="absolute left-3 top-3 rounded-full bg-[#f7b500] px-3 py-1 text-[11px] font-extrabold text-black">
+                              {d.badge}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h3 className="text-sm font-extrabold">{d.title}</h3>
+                              <p className="text-xs text-white/60 mt-1">{d.category}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-white/50">Starting</p>
+                              <p className="text-sm font-extrabold text-[#f7b500]">
+                                {CURRENCY(d.priceLKR)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => deleteDesign(d.id)}
+                            className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10 transition inline-flex items-center justify-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-300" /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {designs.length === 0 && (
+                    <p className="mt-8 text-center text-sm text-white/60">No design listings yet.</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h2 className="text-sm font-extrabold text-[#f7b500]">Scrolling Advertisements</h2>
+                  <p className="text-xs text-white/60 mt-1">
+                    Use these in a home page scrolling banner. Total: {ads.length}
+                  </p>
+
+                  <div className="mt-4 space-y-3">
+                    {ads.map((a) => (
+                      <div
+                        key={a.id}
+                        className="rounded-2xl border border-[#f7b500]/20 bg-white/[0.06] backdrop-blur-xl p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold leading-6">
+                              <span className={a.active ? "text-white" : "text-white/50"}>
+                                {a.text}
+                              </span>
+                            </p>
+                            {a.link ? (
+                              <p className="text-xs text-white/50 mt-1 break-all">
+                                Link: <span className="text-[#f7b500]">{a.link}</span>
+                              </p>
+                            ) : (
+                              <p className="text-xs text-white/40 mt-1">No link</p>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <button
+                              onClick={() => toggleAd(a.id)}
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10 transition inline-flex items-center gap-2"
+                            >
+                              {a.active ? (
+                                <>
+                                  <ToggleRight className="w-4 h-4 text-[#f7b500]" /> Active
+                                </>
+                              ) : (
+                                <>
+                                  <ToggleLeft className="w-4 h-4 text-white/50" /> Disabled
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => deleteAd(a.id)}
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10 transition inline-flex items-center gap-2"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-300" /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {ads.length === 0 && (
+                    <p className="mt-8 text-center text-sm text-white/60">No ads created yet.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* Hint */}
+        <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-5">
+          <h3 className="text-sm font-extrabold text-[#f7b500]">Connect to your public pages</h3>
+          <p className="mt-2 text-xs text-white/65 leading-6">
+            Your <span className="text-white font-semibold">Designs page</span> can read listings from localStorage
+            using the key: <span className="text-[#f7b500]">{LS_KEYS.designs}</span>.
+            <br />
+            Your <span className="text-white font-semibold">Home scrolling ads</span> can read from:
+            <span className="text-[#f7b500]"> {LS_KEYS.ads}</span> (use only active ads).
+          </p>
+        </div>
+      </main>
+    </div>
   );
 }

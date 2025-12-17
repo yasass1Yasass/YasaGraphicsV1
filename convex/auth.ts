@@ -50,7 +50,7 @@ export const verifyToken = query({
   args: {
     token: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (_ctx, _args) => {
     // For now, we'll do simple validation
     // In production, store tokens in database
     // For this implementation, we'll validate on the client side
@@ -70,7 +70,7 @@ export const verifyAdmin = mutation({
   args: {
     token: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (_ctx, args) => {
     // Simple validation - in production use proper token validation
     // For now, just check if token exists and is not empty
     if (!args.token || args.token.length < 10) {

@@ -7,7 +7,8 @@ export async function getStorageUrl(
 ): Promise<string | undefined> {
   if (!storageId) return undefined;
   try {
-    return await ctx.storage.getUrl(storageId as any);
+    const url = await ctx.storage.getUrl(storageId as any);
+    return url ?? undefined;
   } catch {
     return undefined;
   }

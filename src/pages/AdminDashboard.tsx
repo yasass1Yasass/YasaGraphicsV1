@@ -109,15 +109,6 @@ function saveJSON<T>(key: string, value: T) {
   }
 }
 
-// Convert video file to base64
-async function convertVideoToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 // Compress and resize image to optimize storage
 async function compressImage(file: File, maxWidth = 900, maxHeight = 900, quality = 0.75): Promise<string> {

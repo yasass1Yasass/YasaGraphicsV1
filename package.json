@@ -1,19 +1,18 @@
 {
-  "name": "eco-venture-starter",
+  "name": "yasagraphics",
   "private": true,
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "convex dev & vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy"
   },
   "dependencies": {
-    "bcryptjs": "^3.0.2",
-    "dotenv": "^17.2.2",
-    "jsonwebtoken": "^9.0.2",
+    "convex": "^1.31.1",
     "lucide-react": "^0.561.0",
-    "mysql2": "^3.15.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.27.0"

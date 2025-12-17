@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Eye, EyeOff } from "lucide-react";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 const AdminLogin: React.FC = () => {
   const [username, setUsername] = useState("");
@@ -9,6 +11,7 @@ const AdminLogin: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const login = useMutation(api.auth.login);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,21 +19,7 @@ const AdminLogin: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Login failed");
-        setLoading(false);
-        return;
-      }
+      const data = await login({ username, password });
 
       // Store token in localStorage
       localStorage.setItem("adminToken", data.token);
@@ -38,8 +27,8 @@ const AdminLogin: React.FC = () => {
 
       // Redirect to dashboard
       navigate("/admin-dashboard");
-    } catch (err) {
-      setError("Failed to connect to server. Make sure backend is running.");
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please check your credentials.");
       console.error("Login error:", err);
     } finally {
       setLoading(false);

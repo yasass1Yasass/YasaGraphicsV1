@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Tag, Menu, X } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 type DesignListing = {
   id: string;
@@ -42,37 +44,27 @@ export default function Designs() {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<string>("All");
   const [mobileCatsOpen, setMobileCatsOpen] = useState(false);
-  const [customListings, setCustomListings] = useState<DesignListing[]>([]);
   const [allCategories, setAllCategories] = useState<string[]>([]);
 
-  useEffect(() => {
-    // Load custom listings from API
-    const loadListings = async () => {
-      try {
-        const response = await fetch("http://localhost:5000/api/listings");
-        if (response.ok) {
-          const listings = await response.json() as DesignListing[];
-          setCustomListings(listings);
-          console.log("Loaded design listings from API:", listings);
-        }
-      } catch (e) {
-        console.error("Failed to load listings from API:", e);
-        // Fallback to localStorage
-        try {
-          const stored = localStorage.getItem("yasa_design_listings_v1");
-          if (stored) {
-            const listings = JSON.parse(stored) as DesignListing[];
-            setCustomListings(listings);
-            console.log("Loaded design listings from localStorage:", listings);
-          }
-        } catch (fallbackError) {
-          console.error("Failed to load listings from localStorage:", fallbackError);
-        }
-      }
-    };
-
-    loadListings();
-  }, []);
+  // Load listings from Convex
+  const listingsData = useQuery(api.designs.list) || [];
+  
+  // Convert Convex data to DesignListing format
+  const customListings: DesignListing[] = useMemo(() => {
+    return listingsData.map((item) => ({
+      id: item.id.toString(),
+      title: item.title,
+      subtitle: item.subtitle,
+      category: item.category,
+      price: item.price,
+      image: item.image,
+      video: item.video,
+      starting: item.starting,
+      discountEnabled: item.discountEnabled,
+      discountPercentage: item.discountPercentage,
+      createdAt: item.createdAt,
+    }));
+  }, [listingsData]);
 
   // Generate categories from custom listings
   useEffect(() => {
@@ -239,7 +231,7 @@ export default function Designs() {
                   <div className="relative h-40 sm:h-44 bg-black/30 group/media overflow-hidden">
                     {item.video ? (
                       <video
-                        src={item.video.startsWith('http') || item.video.startsWith('data:') ? item.video : `http://localhost:5000${item.video}`}
+                        src={item.video.startsWith('http') || item.video.startsWith('data:') ? item.video : item.video}
                         className="h-full w-full object-cover opacity-95 group-hover:opacity-100 transition"
                         onMouseEnter={(e) => e.currentTarget.play()}
                         onMouseLeave={(e) => {
@@ -251,7 +243,7 @@ export default function Designs() {
                       />
                     ) : item.image ? (
                       <img
-                        src={item.image.startsWith('http') || item.image.startsWith('data:') ? item.image : `http://localhost:5000${item.image}`}
+                        src={item.image.startsWith('http') || item.image.startsWith('data:') ? item.image : item.image}
                         alt={item.title}
                         className="h-full w-full object-cover opacity-95 group-hover:opacity-100 transition"
                       />

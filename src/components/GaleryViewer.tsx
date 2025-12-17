@@ -57,7 +57,7 @@ const GaleryViewer: React.FC<GaleryViewerProps> = ({
   const mediaUrl = useMemo(() => {
     const raw = isVideo ? item.video_url : item.image_url;
     if (!raw) return "";
-    return raw.startsWith("http") ? raw : `http://localhost:5000${raw}`;
+    return raw.startsWith("http") ? raw : raw;
   }, [item.image_url, item.video_url, isVideo]);
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 20, 300));

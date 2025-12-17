@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Eye, EyeOff, Image as ImageIcon, Plus, Trash2, Settings, LayoutGrid } from "lucide-react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 
 type PortfolioItem = {
   id: number;
@@ -164,9 +167,7 @@ const AdminDashboard: React.FC = () => {
   const [tab, setTab] = useState<"listings" | "portfolio" | "gallery" | "navbar" | "hero">("listings");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
-  const [listings, setListings] = useState<DesignListing[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
-  const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [showNavbar, setShowNavbar] = useState(true);
   const [navbarText, setNavbarText] = useState("");
   const [feedNews, setFeedNews] = useState("");
@@ -208,45 +209,6 @@ const AdminDashboard: React.FC = () => {
 
     setIsAuthenticated(true);
 
-    // Load listings from API
-    const loadListings = async () => {
-      try {
-        const response = await fetch("http://localhost:5000/api/listings");
-        if (response.ok) {
-          const data = await response.json();
-          setListings(data);
-        }
-      } catch (error) {
-        console.error("Failed to load listings:", error);
-        showToast("Failed to load listings", "error");
-      }
-    };
-
-    // Load gallery items from API
-    const loadGallery = async () => {
-      try {
-        const response = await fetch("http://localhost:5000/api/listings/gallery/all");
-        if (response.ok) {
-          const data = await response.json();
-          const galleryItems = data.map((item: any) => ({
-            id: item.id,
-            category: item.category,
-            subtitle: item.description,
-            image: item.image_url || "",
-            video: item.video_url || "",
-            url: item.url || "",
-            createdAt: item.createdAt
-          }));
-          setGallery(galleryItems);
-        }
-      } catch (error) {
-        console.error("Failed to load gallery:", error);
-      }
-    };
-
-    loadListings();
-    loadGallery();
-
     const storedPortfolio = loadJSON<PortfolioItem[]>(LS_KEYS.portfolio, DEFAULT_PORTFOLIO);
     const storedNavbarDisplay = loadJSON<boolean>(LS_KEYS.navbarDisplay, true);
     const storedNavbarText = loadJSON<string>(
@@ -258,7 +220,6 @@ const AdminDashboard: React.FC = () => {
     const storedHeroSubtitle = loadJSON<string>(LS_KEYS.heroSubtitle, "Designs that grow your brand.");
     const storedHeroDescription = loadJSON<string>(LS_KEYS.heroDescription, "We specialize in creating stunning visual identities that make your business stand out. From logo design and branding to social media graphics, posters, banners, video edits, and logo animations — we bring your creative vision to life.");
     const storedPortfolioHeading = loadJSON<string>(LS_KEYS.portfolioHeading, "Our Portfolio");
-    const storedGallery = loadJSON<GalleryItem[]>(LS_KEYS.gallery, []);
 
     setPortfolio(storedPortfolio);
     setShowNavbar(storedNavbarDisplay);
@@ -268,10 +229,62 @@ const AdminDashboard: React.FC = () => {
     setHeroSubtitle(storedHeroSubtitle);
     setHeroDescription(storedHeroDescription);
     setPortfolioHeading(storedPortfolioHeading);
-    setGallery(storedGallery);
 
     setLoading(false);
   }, [navigate]);
+
+  // Load data from Convex
+  const listingsData = useQuery(api.designs.list) || [];
+  const galleryData = useQuery(api.gallery.list) || [];
+
+  // Convert Convex data to component format
+  const listings: DesignListing[] = listingsData.map((item) => ({
+    id: item.id.toString(),
+    title: item.title,
+    subtitle: item.subtitle,
+    category: item.category,
+    price: item.price,
+    image: item.image,
+    video: item.video,
+    starting: item.starting,
+    discountEnabled: item.discountEnabled,
+    discountPercentage: item.discountPercentage,
+    createdAt: item.createdAt,
+  }));
+
+  const gallery: GalleryItem[] = galleryData.map((item) => ({
+    id: item.id.toString(),
+    category: item.category,
+    subtitle: item.description,
+    image: item.image_url || "",
+    video: item.video_url || "",
+    url: item.url || "",
+    createdAt: item.createdAt,
+  }));
+
+  // Convex mutations
+  const createListing = useMutation(api.designs.create);
+  const updateListing = useMutation(api.designs.update);
+  const deleteListing = useMutation(api.designs.remove);
+  const createGalleryItem = useMutation(api.gallery.create);
+  const deleteGalleryItem = useMutation(api.gallery.remove);
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+
+  // Helper function to upload file to Convex
+  const uploadFile = async (file: File): Promise<string> => {
+    const token = localStorage.getItem("adminToken") || "";
+    const uploadUrl = await generateUploadUrl({ token });
+    
+    const result = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    
+    const { storageId } = await result.json();
+    // Return the storageId - Convex queries will convert it to URL automatically
+    return storageId;
+  };
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setToast({ message, type });
@@ -340,57 +353,39 @@ const AdminDashboard: React.FC = () => {
     }
 
     try {
-      const token = localStorage.getItem("adminToken");
-      const payload = {
-        title,
-        subtitle,
-        category,
-        price: listPrice,
-        image: listImage.trim() || "",
-        video: listVideo.trim() || undefined,
-        starting: listStarting,
-        discountEnabled: listDiscountEnabled,
-        discountPercentage: listDiscountEnabled ? listDiscountPercentage : 0,
-      };
+      const token = localStorage.getItem("adminToken") || "";
 
       if (editingId) {
         // Update existing listing
-        const response = await fetch(`http://localhost:5000/api/listings/${editingId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
+        await updateListing({
+          id: editingId as Id<"designs">,
+          title,
+          subtitle,
+          category,
+          price: listPrice,
+          image: listImage.trim() || undefined,
+          video: listVideo.trim() || undefined,
+          starting: listStarting,
+          discountEnabled: listDiscountEnabled,
+          discountPercentage: listDiscountEnabled ? listDiscountPercentage : 0,
+          token,
         });
-
-        if (!response.ok) {
-          throw new Error("Failed to update listing");
-        }
-
-        const updatedListing = await response.json();
-        setListings((prev) =>
-          prev.map((l) => (l.id === editingId ? updatedListing : l))
-        );
         showToast("✓ Design listing updated successfully!", "success");
         setEditingId(null);
       } else {
         // Create new listing
-        const response = await fetch("http://localhost:5000/api/listings", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
+        await createListing({
+          title,
+          subtitle,
+          category,
+          price: listPrice,
+          image: listImage.trim() || undefined,
+          video: listVideo.trim() || undefined,
+          starting: listStarting,
+          discountEnabled: listDiscountEnabled,
+          discountPercentage: listDiscountEnabled ? listDiscountPercentage : 0,
+          token,
         });
-
-        if (!response.ok) {
-          throw new Error("Failed to create listing");
-        }
-
-        const newListing = await response.json();
-        setListings((prev) => [newListing, ...prev]);
         showToast("✓ Design listing created successfully!", "success");
       }
 
@@ -403,9 +398,9 @@ const AdminDashboard: React.FC = () => {
       setListStarting(false);
       setListDiscountEnabled(false);
       setListDiscountPercentage(0);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showToast("Failed to save listing.", "error");
+      showToast(err.message || "Failed to save listing.", "error");
     }
   };
 
@@ -435,25 +430,17 @@ const AdminDashboard: React.FC = () => {
     setListDiscountPercentage(0);
   };
 
-  const deleteListing = async (id: string) => {
+  const deleteListingHandler = async (id: string) => {
     try {
-      const token = localStorage.getItem("adminToken");
-      const response = await fetch(`http://localhost:5000/api/listings/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
+      const token = localStorage.getItem("adminToken") || "";
+      await deleteListing({
+        id: id as Id<"designs">,
+        token,
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete listing");
-      }
-
-      setListings((prev) => prev.filter((l) => l.id !== id));
       showToast("✓ Listing deleted successfully!", "success");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showToast("Failed to delete listing.", "error");
+      showToast(err.message || "Failed to delete listing.", "error");
     }
   };
 
@@ -506,74 +493,41 @@ const AdminDashboard: React.FC = () => {
     }
 
     try {
-      const token = localStorage.getItem("adminToken");
-      const id = Date.now().toString();
+      const token = localStorage.getItem("adminToken") || "";
       
-      // Save to backend
-      const response = await fetch("http://localhost:5000/api/listings/gallery/add", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          category,
-          title: category, // Using category as title to match DB structure
-          description: subtitle,
-          image_url: galleryImage || null,
-          video_url: galleryVideo || null,
-          url: url || null,
-        }),
+      await createGalleryItem({
+        category,
+        title: category, // Using category as title to match DB structure
+        description: subtitle,
+        image_url: galleryImage || undefined,
+        video_url: galleryVideo || undefined,
+        url: url || undefined,
+        token,
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to save gallery item");
-      }
-
-      const savedItem = await response.json();
-
-      const newItem: GalleryItem = {
-        id: savedItem.id,
-        category,
-        subtitle,
-        image: galleryImage || "",
-        video: galleryVideo || undefined,
-        url: url || "",
-        createdAt: Date.now()
-      };
-
-      setGallery((prev) => [newItem, ...prev]);
       setGalleryCategory("Business Card Design");
       setGallerySubtitle("");
       setGalleryImage("");
       setGalleryVideo("");
       setGalleryUrl("");
       showToast("✓ Gallery item added successfully!", "success");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showToast("Failed to add gallery item.", "error");
+      showToast(err.message || "Failed to add gallery item.", "error");
     }
   };
 
-  const deleteGalleryItem = async (id: string) => {
+  const deleteGalleryItemHandler = async (id: string) => {
     try {
-      const token = localStorage.getItem("adminToken");
-      const response = await fetch(`http://localhost:5000/api/listings/gallery/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
+      const token = localStorage.getItem("adminToken") || "";
+      await deleteGalleryItem({
+        id: id as Id<"profiling">,
+        token,
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete gallery item");
-      }
-
-      setGallery((prev) => prev.filter((g) => g.id !== id));
       showToast("Gallery item deleted!", "success");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showToast("Failed to delete gallery item.", "error");
+      showToast(err.message || "Failed to delete gallery item.", "error");
     }
   };
 
@@ -765,27 +719,11 @@ const AdminDashboard: React.FC = () => {
                           const file = e.target.files?.[0];
                           if (file) {
                             try {
-                              const formData = new FormData();
-                              formData.append('file', file);
-                              const token = localStorage.getItem("adminToken");
-                              
-                              const response = await fetch("http://localhost:5000/api/listings/upload", {
-                                method: "POST",
-                                headers: {
-                                  "Authorization": `Bearer ${token}`,
-                                },
-                                body: formData,
-                              });
-
-                              if (!response.ok) {
-                                throw new Error("Upload failed");
-                              }
-
-                              const data = await response.json();
-                              setListImage(data.filePath);
+                              const fileUrl = await uploadFile(file);
+                              setListImage(fileUrl);
                               showToast("Image uploaded successfully", "success");
-                            } catch (err) {
-                              showToast("Failed to upload image.", "error");
+                            } catch (err: any) {
+                              showToast(err.message || "Failed to upload image.", "error");
                               console.error(err);
                             }
                           }
@@ -794,7 +732,7 @@ const AdminDashboard: React.FC = () => {
                       />
                       {listImage && (
                         <div className="mt-2 relative rounded-lg overflow-hidden border border-[#f7b500]/30 bg-black/20 flex items-center justify-between">
-                          <img src={`http://localhost:5000${listImage}`} alt="preview" className="h-32 w-full object-cover opacity-80" />
+                          <img src={listImage} alt="preview" className="h-32 w-full object-cover opacity-80" />
                           <button
                             type="button"
                             onClick={() => setListImage("")}
@@ -816,27 +754,11 @@ const AdminDashboard: React.FC = () => {
                           if (!file) return;
                           
                           try {
-                            const formData = new FormData();
-                            formData.append('file', file);
-                            const token = localStorage.getItem("adminToken");
-                            
-                            const response = await fetch("http://localhost:5000/api/listings/upload", {
-                              method: "POST",
-                              headers: {
-                                "Authorization": `Bearer ${token}`,
-                              },
-                              body: formData,
-                            });
-
-                            if (!response.ok) {
-                              throw new Error("Upload failed");
-                            }
-
-                            const data = await response.json();
-                            setListVideo(data.filePath);
+                            const fileUrl = await uploadFile(file);
+                            setListVideo(fileUrl);
                             showToast("Video uploaded successfully", "success");
-                          } catch (err) {
-                            showToast("Failed to upload video", "error");
+                          } catch (err: any) {
+                            showToast(err.message || "Failed to upload video", "error");
                             console.error(err);
                           }
                         }}
@@ -1018,27 +940,11 @@ const AdminDashboard: React.FC = () => {
                           const file = e.target.files?.[0];
                           if (file) {
                             try {
-                              const formData = new FormData();
-                              formData.append('file', file);
-                              const token = localStorage.getItem("adminToken");
-                              
-                              const response = await fetch("http://localhost:5000/api/listings/upload", {
-                                method: "POST",
-                                headers: {
-                                  "Authorization": `Bearer ${token}`,
-                                },
-                                body: formData,
-                              });
-
-                              if (!response.ok) {
-                                throw new Error("Upload failed");
-                              }
-
-                              const data = await response.json();
-                              setGalleryImage(data.filePath);
+                              const fileUrl = await uploadFile(file);
+                              setGalleryImage(fileUrl);
                               showToast("Image uploaded successfully", "success");
-                            } catch (err) {
-                              showToast("Failed to upload image.", "error");
+                            } catch (err: any) {
+                              showToast(err.message || "Failed to upload image.", "error");
                               console.error(err);
                             }
                           }
@@ -1047,7 +953,7 @@ const AdminDashboard: React.FC = () => {
                       />
                       {galleryImage && (
                         <div className="mt-2 relative rounded-lg overflow-hidden border border-[#f7b500]/30 bg-black/20">
-                          <img src={`http://localhost:5000${galleryImage}`} alt="preview" className="h-32 w-full object-cover opacity-80" />
+                          <img src={galleryImage} alt="preview" className="h-32 w-full object-cover opacity-80" />
                           <button
                             type="button"
                             onClick={() => setGalleryImage("")}
@@ -1069,27 +975,11 @@ const AdminDashboard: React.FC = () => {
                           if (!file) return;
                           
                           try {
-                            const formData = new FormData();
-                            formData.append('file', file);
-                            const token = localStorage.getItem("adminToken");
-                            
-                            const response = await fetch("http://localhost:5000/api/listings/upload", {
-                              method: "POST",
-                              headers: {
-                                "Authorization": `Bearer ${token}`,
-                              },
-                              body: formData,
-                            });
-
-                            if (!response.ok) {
-                              throw new Error("Upload failed");
-                            }
-
-                            const data = await response.json();
-                            setGalleryVideo(data.filePath);
+                            const fileUrl = await uploadFile(file);
+                            setGalleryVideo(fileUrl);
                             showToast("Video uploaded successfully", "success");
-                          } catch (err) {
-                            showToast("Failed to upload video", "error");
+                          } catch (err: any) {
+                            showToast(err.message || "Failed to upload video", "error");
                             console.error(err);
                           }
                         }}
@@ -1267,7 +1157,7 @@ const AdminDashboard: React.FC = () => {
                             {listing.image && (
                               <div className="h-24 w-full rounded-lg overflow-hidden bg-black/50">
                                 <img
-                                  src={listing.image.startsWith('http') || listing.image.startsWith('data:') ? listing.image : `http://localhost:5000${listing.image}`}
+                                  src={listing.image}
                                   alt={listing.title}
                                   className="h-full w-full object-cover"
                                 />
@@ -1299,7 +1189,7 @@ const AdminDashboard: React.FC = () => {
                                   Edit
                                 </button>
                                 <button
-                                  onClick={() => deleteListing(listing.id)}
+                                  onClick={() => deleteListingHandler(listing.id)}
                                   className="rounded-lg bg-red-500/20 px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/30 transition"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -1377,7 +1267,7 @@ const AdminDashboard: React.FC = () => {
                           {item.image && (
                             <div className="h-24 w-full rounded-lg overflow-hidden bg-black/50 mb-3">
                               <img
-                                src={item.image.startsWith('http') || item.image.startsWith('data:') ? item.image : `http://localhost:5000${item.image}`}
+                                src={item.image}
                                 alt={item.category}
                                 className="h-full w-full object-cover"
                               />
@@ -1405,7 +1295,7 @@ const AdminDashboard: React.FC = () => {
                                 <span className="text-xs text-blue-300">📹 Video</span>
                               )}
                               <button
-                                onClick={() => deleteGalleryItem(item.id)}
+                                onClick={() => deleteGalleryItemHandler(item.id)}
                                 className="ml-auto rounded-lg bg-red-500/20 px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/30 transition"
                               >
                                 <Trash2 className="w-4 h-4" />

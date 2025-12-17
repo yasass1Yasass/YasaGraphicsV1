@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import GaleryViewer from "../components/GaleryViewer";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 type GalleryItem = {
   id: string;
@@ -13,37 +15,24 @@ type GalleryItem = {
 };
 
 const Gallery: React.FC = () => {
-  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const loadGallery = async () => {
-    try {
-      const response = await fetch("http://localhost:5000/api/listings/gallery/all");
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Gallery data loaded:", data);
-        console.log("Total items:", data.length);
-        if (data.length > 0) {
-          console.log("Sample item:", data[0]);
-        }
-        setGalleryItems(data || []);
-      } else {
-        console.error("Failed to load gallery, status:", response.status);
-        const errorText = await response.text();
-        console.error("Error response:", errorText);
-      }
-    } catch (error) {
-      console.error("Failed to load gallery:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Load gallery from Convex
+  const galleryData = useQuery(api.gallery.list) || [];
+  const loading = galleryData === undefined;
 
-  useEffect(() => {
-    loadGallery();
-  }, []);
+  // Convert Convex data to GalleryItem format
+  const galleryItems: GalleryItem[] = galleryData.map((item) => ({
+    id: item.id.toString(),
+    category: item.category,
+    title: item.title,
+    description: item.description,
+    image_url: item.image_url,
+    video_url: item.video_url,
+    url: item.url,
+    createdAt: item.createdAt,
+  }));
 
   useEffect(() => {
     // Auto-play video when modal opens
@@ -186,7 +175,7 @@ const Gallery: React.FC = () => {
                           src={
                             item.video_url.startsWith("http")
                               ? item.video_url
-                              : `http://localhost:5000${item.video_url}`
+                              : item.video_url
                           }
                           className="h-full w-full object-cover opacity-95 group-hover:opacity-100 transition"
                           onMouseEnter={(e) => {
@@ -208,7 +197,7 @@ const Gallery: React.FC = () => {
                           src={
                             item.image_url.startsWith("http")
                               ? item.image_url
-                              : `http://localhost:5000${item.image_url}`
+                              : item.image_url
                           }
                           alt={item.description}
                           className="h-full w-full object-cover opacity-95 group-hover:opacity-100 transition"
@@ -296,11 +285,11 @@ const Gallery: React.FC = () => {
             <div className="relative overflow-hidden bg-black/50 p-1 sm:p-2 m-4 sm:m-6 rounded-xl sm:rounded-2xl border border-[#f7b500]/20">
               <video
                 ref={videoRef}
-                src={selectedItem.video_url.startsWith('http') ? selectedItem.video_url : `http://localhost:5000${selectedItem.video_url}`}
+                src={selectedItem.video_url.startsWith('http') ? selectedItem.video_url : selectedItem.video_url}
                 controls
                 controlsList="nodownload"
                 className="w-full rounded-lg"
-                poster={selectedItem.image_url ? (selectedItem.image_url.startsWith('http') ? selectedItem.image_url : `http://localhost:5000${selectedItem.image_url}`) : undefined}
+                poster={selectedItem.image_url ? (selectedItem.image_url.startsWith('http') ? selectedItem.image_url : selectedItem.image_url) : undefined}
                 autoPlay
               />
             </div>

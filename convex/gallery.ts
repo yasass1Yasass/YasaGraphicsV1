@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getStorageUrl } from "./utils";
 
 export const list = query({
   handler: async (ctx) => {
@@ -10,16 +9,16 @@ export const list = query({
       .order("desc")
       .collect();
 
-    return Promise.all(items.map(async (item) => ({
+    return items.map((item) => ({
       id: item._id,
       category: item.category,
       title: item.title,
       description: item.description || "",
-      image_url: item.image_url ? (await getStorageUrl(ctx, item.image_url)) || item.image_url : "",
-      video_url: item.video_url ? (await getStorageUrl(ctx, item.video_url)) || item.video_url : "",
+      image_url: item.image_url || "",
+      video_url: item.video_url || "",
       url: item.url || "",
       createdAt: item.created_at,
-    })));
+    }));
   },
 });
 

@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getStorageUrl } from "./utils";
 
 export const list = query({
   handler: async (ctx) => {
@@ -10,19 +9,19 @@ export const list = query({
       .order("desc")
       .collect();
 
-    return Promise.all(designs.map(async (design) => ({
+    return designs.map((design) => ({
       id: design._id,
       title: design.title,
       subtitle: design.description || "",
       category: design.category,
       price: design.price_lkr,
-      image: design.image ? (await getStorageUrl(ctx, design.image)) || design.image : "",
-      video: design.video ? (await getStorageUrl(ctx, design.video)) || design.video : undefined,
+      image: design.image || "",
+      video: design.video || undefined,
       starting: design.badge === "starting",
       discountEnabled: design.discount_enabled || false,
       discountPercentage: design.discount_percentage || 0,
       createdAt: design.created_at,
-    })));
+    }));
   },
 });
 

@@ -47,10 +47,11 @@ export default function Designs() {
   const [allCategories, setAllCategories] = useState<string[]>([]);
 
   // Load listings from Convex
-  const listingsData = useQuery(api.designs.list) || [];
+  const listingsData = useQuery(api.designs.list);
   
   // Convert Convex data to DesignListing format
   const customListings: DesignListing[] = useMemo(() => {
+    if (!listingsData || listingsData.length === 0) return [];
     return listingsData.map((item) => ({
       id: item.id.toString(),
       title: item.title,
@@ -66,12 +67,16 @@ export default function Designs() {
     }));
   }, [listingsData]);
 
-  // Generate categories from custom listings
+  // Generate categories from listingsData directly to avoid infinite loop
   useEffect(() => {
+    if (!listingsData || listingsData.length === 0) {
+      setAllCategories(["All"]);
+      return;
+    }
     const cats = new Set<string>(["All"]);
-    customListings.forEach((l) => cats.add(l.category));
+    listingsData.forEach((l) => cats.add(l.category));
     setAllCategories(Array.from(cats).sort());
-  }, [customListings]);
+  }, [listingsData]);
 
   // Use only custom listings from API
   const allDesignItems = useMemo(() => {

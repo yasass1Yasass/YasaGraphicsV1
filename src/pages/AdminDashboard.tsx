@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Eye, EyeOff, Image as ImageIcon, Plus, Trash2, Settings, LayoutGrid } from "lucide-react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 
@@ -259,22 +259,49 @@ const AdminDashboard: React.FC = () => {
   const deleteListing = useMutation(api.designs.remove);
   const createGalleryItem = useMutation(api.gallery.create);
   const deleteGalleryItem = useMutation(api.gallery.remove);
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const uploadToCloudinary = useAction(api.cloudinary.uploadFile);
 
-  // Helper function to upload file to Convex
-  const uploadFile = async (file: File): Promise<string> => {
-    const token = localStorage.getItem("adminToken") || "";
-    const uploadUrl = await generateUploadUrl({ token });
-    
-    const result = await fetch(uploadUrl, {
-      method: "POST",
-      headers: { "Content-Type": file.type },
-      body: file,
+  // Helper function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        // Remove data URL prefix (e.g., "data:image/jpeg;base64,")
+        const base64Data = base64.split(",")[1];
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
+  };
+
+  // Helper function to upload file to Cloudinary
+  const uploadFile = async (file: File, folder: string = "yasagraphics"): Promise<string> => {
+    const token = localStorage.getItem("adminToken") || "";
     
-    const { storageId } = await result.json();
-    // Return the storageId - Convex queries will convert it to URL automatically
-    return storageId;
+    try {
+      // Convert file to base64
+      const fileData = await fileToBase64(file);
+      
+      // Upload to Cloudinary via Convex action
+      const result = await uploadToCloudinary({
+        fileData,
+        fileName: file.name,
+        fileType: file.type,
+        folder,
+        token,
+      });
+
+      if (result.success && result.url) {
+        return result.url;
+      } else {
+        throw new Error("Upload failed: No URL returned");
+      }
+    } catch (error: any) {
+      console.error("Cloudinary upload error:", error);
+      throw new Error(error.message || "Failed to upload file to Cloudinary");
+    }
   };
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
@@ -397,11 +424,11 @@ const AdminDashboard: React.FC = () => {
 
   const editListing = (listing: DesignListing) => {
     setEditingId(listing.id);
-    setListTitle(listing.title);
-    setListSubtitle(listing.subtitle);
-    setListCategory(listing.category);
-    setListPrice(listing.price);
-    setListImage(listing.image);
+    setListTitle(listing.title || "");
+    setListSubtitle(listing.subtitle || "");
+    setListCategory(listing.category || "Business Card Design");
+    setListPrice(listing.price || 5000);
+    setListImage(listing.image || "");
     setListVideo(listing.video || "");
     setListStarting(listing.starting || false);
     setListDiscountEnabled(listing.discountEnabled || false);
@@ -658,7 +685,7 @@ const AdminDashboard: React.FC = () => {
                     <label className="block">
                       <span className="text-xs text-white/70">Title</span>
                       <input
-                        value={listTitle}
+                        value={listTitle || ""}
                         onChange={(e) => setListTitle(e.target.value)}
                         placeholder="e.g., Logo Design"
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
@@ -668,7 +695,7 @@ const AdminDashboard: React.FC = () => {
                     <label className="block">
                       <span className="text-xs text-white/70">Subtitle</span>
                       <input
-                        value={listSubtitle}
+                        value={listSubtitle || ""}
                         onChange={(e) => setListSubtitle(e.target.value)}
                         placeholder="e.g., Professional branding for businesses"
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
@@ -678,7 +705,7 @@ const AdminDashboard: React.FC = () => {
                     <label className="block">
                       <span className="text-xs text-white/70">Category</span>
                       <select
-                        value={listCategory}
+                        value={listCategory || "Business Card Design"}
                         onChange={(e) => setListCategory(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60 text-white"
                       >
@@ -694,7 +721,7 @@ const AdminDashboard: React.FC = () => {
                       <span className="text-xs text-white/70">Price (LKR)</span>
                       <input
                         type="number"
-                        value={listPrice}
+                        value={listPrice || 0}
                         onChange={(e) => setListPrice(Math.max(0, parseInt(e.target.value) || 0))}
                         placeholder="5000"
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
@@ -795,7 +822,7 @@ const AdminDashboard: React.FC = () => {
                               type="number"
                               min="0"
                               max="100"
-                              value={listDiscountPercentage}
+                              value={listDiscountPercentage || 0}
                               onChange={(e) => setListDiscountPercentage(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
                               placeholder="e.g., 15"
                               className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
@@ -849,7 +876,7 @@ const AdminDashboard: React.FC = () => {
                     <label className="block">
                       <span className="text-xs text-white/70">Project Title</span>
                       <input
-                        value={portTitle}
+                        value={portTitle || ""}
                         onChange={(e) => setPortTitle(e.target.value)}
                         placeholder="e.g., Logo Design"
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
@@ -900,7 +927,7 @@ const AdminDashboard: React.FC = () => {
                     <label className="block">
                       <span className="text-xs text-white/70">Category</span>
                       <select
-                        value={galleryCategory}
+                        value={galleryCategory || "Business Card Design"}
                         onChange={(e) => setGalleryCategory(e.target.value)}
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60 text-white"
                       >
@@ -915,7 +942,7 @@ const AdminDashboard: React.FC = () => {
                     <label className="block">
                       <span className="text-xs text-white/70">Subtitle/Description</span>
                       <input
-                        value={gallerySubtitle}
+                        value={gallerySubtitle || ""}
                         onChange={(e) => setGallerySubtitle(e.target.value)}
                         placeholder="e.g., Project description"
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
@@ -994,7 +1021,7 @@ const AdminDashboard: React.FC = () => {
                       <span className="text-xs text-white/70">URL/Link</span>
                       <input
                         type="text"
-                        value={galleryUrl}
+                        value={galleryUrl || ""}
                         onChange={(e) => setGalleryUrl(e.target.value)}
                         placeholder="https://example.com"
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
@@ -1018,7 +1045,7 @@ const AdminDashboard: React.FC = () => {
                     <label className="block">
                       <span className="text-xs text-white/70">Marquee Text</span>
                       <textarea
-                        value={navbarText}
+                        value={navbarText || ""}
                         onChange={(e) => setNavbarText(e.target.value)}
                         rows={2}
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60 resize-none"
@@ -1028,7 +1055,7 @@ const AdminDashboard: React.FC = () => {
                     <label className="block">
                       <span className="text-xs text-white/70">Feed News (Home Page Marquee)</span>
                       <textarea
-                        value={feedNews}
+                        value={feedNews || ""}
                         onChange={(e) => setFeedNews(e.target.value)}
                         rows={3}
                         placeholder="Enter news items separated by | symbol&#10;e.g: 🔥 Logo Design | 🎬 Video Editing"
@@ -1067,7 +1094,7 @@ const AdminDashboard: React.FC = () => {
                       <span className="text-xs text-white/70">Hero Title</span>
                       <input
                         type="text"
-                        value={heroTitle}
+                        value={heroTitle || ""}
                         onChange={(e) => setHeroTitle(e.target.value)}
                         placeholder="Welcome to Yasa Graphics"
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
@@ -1078,7 +1105,7 @@ const AdminDashboard: React.FC = () => {
                       <span className="text-xs text-white/70">Hero Subtitle</span>
                       <input
                         type="text"
-                        value={heroSubtitle}
+                        value={heroSubtitle || ""}
                         onChange={(e) => setHeroSubtitle(e.target.value)}
                         placeholder="Designs that grow your brand."
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"
@@ -1088,7 +1115,7 @@ const AdminDashboard: React.FC = () => {
                     <label className="block">
                       <span className="text-xs text-white/70">Hero Description</span>
                       <textarea
-                        value={heroDescription}
+                        value={heroDescription || ""}
                         onChange={(e) => setHeroDescription(e.target.value)}
                         rows={4}
                         placeholder="We specialize in creating stunning visual identities..."
@@ -1100,7 +1127,7 @@ const AdminDashboard: React.FC = () => {
                       <span className="text-xs text-white/70">Portfolio Section Heading</span>
                       <input
                         type="text"
-                        value={portfolioHeading}
+                        value={portfolioHeading || ""}
                         onChange={(e) => setPortfolioHeading(e.target.value)}
                         placeholder="Our Portfolio"
                         className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#f7b500]/60"

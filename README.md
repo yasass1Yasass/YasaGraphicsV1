@@ -15,6 +15,7 @@ A modern full-stack web application for showcasing design services, built with R
 
 - **Frontend**: React 18 + TypeScript + Vite
 - **Backend**: Convex (Backend-as-a-Service)
+- **File Storage**: Cloudinary (Images & Videos)
 - **Styling**: Tailwind CSS
 - **Routing**: React Router DOM
 - **Icons**: Lucide React
@@ -55,7 +56,19 @@ VITE_CONVEX_URL=your_convex_url_here
 
 The `CONVEX_URL` will be provided when you run `npx convex dev`.
 
-### 4. Start Development Server
+### 4. Set Up Cloudinary (Required for File Uploads)
+
+1. Go to your Convex dashboard: https://dashboard.convex.dev
+2. Navigate to your project → Settings → Environment Variables
+3. Add: `CLOUDINARY_API_SECRET` = `oLEI0o0H7zObFvj069l8d4Zjfd0`
+
+**Note**: Cloudinary is already configured with:
+- Cloud Name: `dmyp8ajc7`
+- API Key: `783971789699552`
+
+See [CLOUDINARY_SETUP.md](./CLOUDINARY_SETUP.md) for detailed instructions.
+
+### 5. Start Development Server
 
 ```bash
 npm run dev
@@ -125,7 +138,9 @@ Or connect your GitHub repository to Vercel for automatic deployments.
 ## 📚 Documentation
 
 - [Convex Setup Guide](./CONVEX_SETUP.md) - Detailed Convex setup instructions
+- [Cloudinary Setup Guide](./CLOUDINARY_SETUP.md) - Cloudinary integration guide
 - [Convex Documentation](https://docs.convex.dev/) - Official Convex docs
+- [Cloudinary Documentation](https://cloudinary.com/documentation) - Official Cloudinary docs
 
 ## 🎨 Features Overview
 

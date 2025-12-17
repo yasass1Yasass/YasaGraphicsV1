@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Brush,
   Share2,
@@ -33,6 +34,7 @@ const DEFAULT_PORTFOLIO = [
 ];
 
 const Home: React.FC = () => {
+  const navigate = useNavigate();
   const [portfolio, setPortfolio] = useState(DEFAULT_PORTFOLIO);
   const [heroTitle, setHeroTitle] = useState("Welcome to Yasa Graphics");
   const [heroSubtitle, setHeroSubtitle] = useState("Designs that grow your brand.");
@@ -148,17 +150,18 @@ const Home: React.FC = () => {
                 className="mt-8 flex flex-col sm:flex-row gap-4"
                 style={{ animation: "pop 0.7s ease-out both", animationDelay: "0.2s" }}
               >
-                <a
-                  href="#services"
+                <button
+                  onClick={() => navigate("/design")}
                   className="
                     inline-flex items-center justify-center sm:justify-start gap-2 rounded-lg bg-[#f7b500]
                     px-6 sm:px-7 py-3 text-base sm:text-lg font-extrabold text-black shadow-lg
                     hover:brightness-95 transition
                     hover:scale-[1.03] active:scale-[0.99]
+                    cursor-pointer
                   "
                 >
                   Get Started <ArrowRight className="w-5 h-5" />
-                </a>
+                </button>
               </div>
             </div>
 

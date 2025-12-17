@@ -1,0 +1,22 @@
+{
+  "name": "YASA Graphics",
+  "short_name": "YASA Graphics",
+  "description": "Design Services Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0708",
+  "theme_color": "#f7b500",
+  "icons": [
+    {
+      "src": "/favicon.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/favicon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
+

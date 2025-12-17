@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as cloudinary from "../cloudinary.js";
 import type * as designs from "../designs.js";
 import type * as files from "../files.js";
 import type * as gallery from "../gallery.js";
@@ -22,6 +23,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  cloudinary: typeof cloudinary;
   designs: typeof designs;
   files: typeof files;
   gallery: typeof gallery;

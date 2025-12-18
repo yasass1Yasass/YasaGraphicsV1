@@ -81,6 +81,9 @@ const GALLERY_CATEGORIES = [
   "Web Design",
   "Landing Page Design",
   "Website Banner Design",
+  "Logo Design",
+  "Logo Animation",
+  "Ai Marketing Video",
 ];
 
 const DEFAULT_PORTFOLIO: PortfolioItem[] = [
@@ -348,6 +351,9 @@ const AdminDashboard: React.FC = () => {
     "Web Design",
     "Landing Page Design",
     "Website Banner Design",
+    "Logo Design",
+    "Logo Animation",
+    "Ai Marketing Video",
   ];
 
   const addListing = async () => {

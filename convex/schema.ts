@@ -40,22 +40,5 @@ export default defineSchema({
     updated_at: v.optional(v.number()),
   })
     .index("by_username", ["username"]),
-
-  siteSettings: defineTable({
-    key: v.string(), // unique key like "hero", "navbar", "portfolio"
-    heroTitle: v.optional(v.string()),
-    heroSubtitle: v.optional(v.string()),
-    heroDescription: v.optional(v.string()),
-    portfolioHeading: v.optional(v.string()),
-    navbarText: v.optional(v.string()),
-    feedNews: v.optional(v.string()), // pipe-separated items
-    portfolioImages: v.optional(v.array(v.object({
-      id: v.number(),
-      img: v.string(),
-      title: v.string(),
-    }))),
-    updated_at: v.number(),
-  })
-    .index("by_key", ["key"]),
 });
 

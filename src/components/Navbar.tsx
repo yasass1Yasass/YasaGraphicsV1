@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { Menu, X } from "lucide-react";
 
 const NavBar: React.FC = () => {
@@ -15,40 +17,35 @@ const NavBar: React.FC = () => {
     "✨ Welcome to Yasa Graphics — Expert Design Solutions!",
   ]);
 
-  // Function to load navbar text from localStorage
-  const loadNavbarText = () => {
-    try {
-      const navbarText = localStorage.getItem("yasa_navbar_marquee_text");
-      if (navbarText) {
-        setOffers([navbarText]);
-        return;
-      }
-
-      const raw = localStorage.getItem("yasa_admin_ads_v1");
-      if (!raw) return;
-
-      const ads = JSON.parse(raw) as Array<{ text?: string; active?: boolean }>;
-      const active = ads
-        .filter((a) => a && a.active && a.text)
-        .map((a) => a.text as string);
-
-      if (active.length) setOffers(active);
-    } catch {
-      // ignore
-    }
-  };
+  // Fetch site settings from Convex
+  const siteSettings = useQuery(api.siteSettings.get);
 
   useEffect(() => {
-    // Initial load
-    loadNavbarText();
+    if (siteSettings?.navbarText) {
+      setOffers([siteSettings.navbarText]);
+    } else {
+      // Fallback to localStorage if Convex data not available
+      try {
+        const navbarText = localStorage.getItem("yasa_navbar_marquee_text");
+        if (navbarText) {
+          setOffers([navbarText]);
+          return;
+        }
 
-    // Set up polling to detect changes every 500ms
-    const pollInterval = setInterval(() => {
-      loadNavbarText();
-    }, 500);
+        const raw = localStorage.getItem("yasa_admin_ads_v1");
+        if (!raw) return;
 
-    return () => clearInterval(pollInterval);
-  }, []);
+        const ads = JSON.parse(raw) as Array<{ text?: string; active?: boolean }>;
+        const active = ads
+          .filter((a) => a && a.active && a.text)
+          .map((a) => a.text as string);
+
+        if (active.length) setOffers(active);
+      } catch {
+        // ignore
+      }
+    }
+  }, [siteSettings]);
 
   const tickerItems = useMemo(() => {
     const safe = offers.length ? offers : ["✨ Welcome to Yasa Graphics"];

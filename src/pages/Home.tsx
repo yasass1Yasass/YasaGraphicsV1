@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import {
   Brush,
   Share2,
@@ -50,48 +52,51 @@ const Home: React.FC = () => {
     "🌟 Modern UI/UX & Website Design",
   ]);
 
-  // Function to load all data from localStorage
-  const loadAllData = () => {
-    try {
-      const stored = localStorage.getItem("yasa_portfolio_images");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) setPortfolio(parsed);
-      }
-
-      // Load hero text from localStorage
-      const storedHeroTitle = localStorage.getItem("yasa_hero_title");
-      const storedHeroSubtitle = localStorage.getItem("yasa_hero_subtitle");
-      const storedHeroDescription = localStorage.getItem("yasa_hero_description");
-      const storedPortfolioHeading = localStorage.getItem("yasa_portfolio_heading");
-
-      if (storedHeroTitle) setHeroTitle(storedHeroTitle);
-      if (storedHeroSubtitle) setHeroSubtitle(storedHeroSubtitle);
-      if (storedHeroDescription) setHeroDescription(storedHeroDescription);
-      if (storedPortfolioHeading) setPortfolioHeading(storedPortfolioHeading);
-
-      // Load feed news from localStorage
-      const storedFeedNews = localStorage.getItem("yasa_feed_news_marquee");
-      if (storedFeedNews) {
-        const items = storedFeedNews.split("|").map((item) => item.trim()).filter((item) => item.length > 0);
-        if (items.length > 0) setFeedNews(items);
-      }
-    } catch {
-      // ignore
-    }
-  };
+  // Fetch site settings from Convex
+  const siteSettings = useQuery(api.siteSettings.get);
 
   useEffect(() => {
-    // Initial load
-    loadAllData();
+    if (siteSettings) {
+      if (siteSettings.heroTitle) setHeroTitle(siteSettings.heroTitle);
+      if (siteSettings.heroSubtitle) setHeroSubtitle(siteSettings.heroSubtitle);
+      if (siteSettings.heroDescription) setHeroDescription(siteSettings.heroDescription);
+      if (siteSettings.portfolioHeading) setPortfolioHeading(siteSettings.portfolioHeading);
+      if (siteSettings.portfolioImages && siteSettings.portfolioImages.length > 0) {
+        setPortfolio(siteSettings.portfolioImages);
+      }
+      if (siteSettings.feedNews) {
+        const items = siteSettings.feedNews.split("|").map((item: string) => item.trim()).filter((item: string) => item.length > 0);
+        if (items.length > 0) setFeedNews(items);
+      }
+    } else {
+      // Fallback to localStorage if Convex data not available
+      try {
+        const stored = localStorage.getItem("yasa_portfolio_images");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) setPortfolio(parsed);
+        }
 
-    // Set up polling to detect changes every 500ms
-    const pollInterval = setInterval(() => {
-      loadAllData();
-    }, 500);
+        const storedHeroTitle = localStorage.getItem("yasa_hero_title");
+        const storedHeroSubtitle = localStorage.getItem("yasa_hero_subtitle");
+        const storedHeroDescription = localStorage.getItem("yasa_hero_description");
+        const storedPortfolioHeading = localStorage.getItem("yasa_portfolio_heading");
 
-    return () => clearInterval(pollInterval);
-  }, []);
+        if (storedHeroTitle) setHeroTitle(storedHeroTitle);
+        if (storedHeroSubtitle) setHeroSubtitle(storedHeroSubtitle);
+        if (storedHeroDescription) setHeroDescription(storedHeroDescription);
+        if (storedPortfolioHeading) setPortfolioHeading(storedPortfolioHeading);
+
+        const storedFeedNews = localStorage.getItem("yasa_feed_news_marquee");
+        if (storedFeedNews) {
+          const items = storedFeedNews.split("|").map((item: string) => item.trim()).filter((item: string) => item.length > 0);
+          if (items.length > 0) setFeedNews(items);
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [siteSettings]);
 
   return (
     <div className="min-h-screen text-white bg-[#0b0708] font-sans text-base leading-relaxed">

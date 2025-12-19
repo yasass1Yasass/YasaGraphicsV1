@@ -264,6 +264,13 @@ const AdminDashboard: React.FC = () => {
   const deleteGalleryItem = useMutation(api.gallery.remove);
   const uploadToCloudinary = useAction(api.cloudinary.uploadFile);
 
+  // Site settings mutations
+  const updateHeroSection = useMutation(api.siteSettings.updateHeroSection);
+  const updatePortfolioHeadingMutation = useMutation(api.siteSettings.updatePortfolioHeading);
+  const updateNavbarTextMutation = useMutation(api.siteSettings.updateNavbarText);
+  const updateFeedNewsMutation = useMutation(api.siteSettings.updateFeedNews);
+  const updatePortfolioImagesMutation = useMutation(api.siteSettings.updatePortfolioImages);
+
   // Helper function to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -555,48 +562,85 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Auto-save
+  // Auto-save portfolio images to Convex
   useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.portfolio, portfolio), 400);
+    if (portfolio.length > 0) {
+      const t = setTimeout(async () => {
+        try {
+          await updatePortfolioImagesMutation({ images: portfolio });
+          saveJSON(LS_KEYS.portfolio, portfolio); // Also save to localStorage as backup
+        } catch (err) {
+          console.error("Failed to save portfolio images:", err);
+        }
+      }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [portfolio, updatePortfolioImagesMutation]);
+
+  // Auto-save hero section to Convex
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      try {
+        await updateHeroSection({ title: heroTitle, subtitle: heroSubtitle, description: heroDescription });
+        saveJSON(LS_KEYS.heroTitle, heroTitle);
+        saveJSON(LS_KEYS.heroSubtitle, heroSubtitle);
+        saveJSON(LS_KEYS.heroDescription, heroDescription);
+      } catch (err) {
+        console.error("Failed to save hero section:", err);
+      }
+    }, 300);
     return () => clearTimeout(t);
-  }, [portfolio]);
+  }, [heroTitle, heroSubtitle, heroDescription, updateHeroSection]);
+
+  // Auto-save navbar text to Convex
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      try {
+        if (navbarText) {
+          await updateNavbarTextMutation({ text: navbarText });
+          saveJSON(LS_KEYS.navbarText, navbarText);
+        }
+      } catch (err) {
+        console.error("Failed to save navbar text:", err);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [navbarText, updateNavbarTextMutation]);
+
+  // Auto-save feed news to Convex
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      try {
+        if (feedNews) {
+          await updateFeedNewsMutation({ feedNews });
+          saveJSON(LS_KEYS.feedNews, feedNews);
+        }
+      } catch (err) {
+        console.error("Failed to save feed news:", err);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [feedNews, updateFeedNewsMutation]);
+
+  // Auto-save portfolio heading to Convex
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      try {
+        if (portfolioHeading) {
+          await updatePortfolioHeadingMutation({ heading: portfolioHeading });
+          saveJSON(LS_KEYS.portfolioHeading, portfolioHeading);
+        }
+      } catch (err) {
+        console.error("Failed to save portfolio heading:", err);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [portfolioHeading, updatePortfolioHeadingMutation]);
 
   useEffect(() => {
     const t = setTimeout(() => saveJSON(LS_KEYS.navbarDisplay, showNavbar), 300);
     return () => clearTimeout(t);
   }, [showNavbar]);
-
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.navbarText, navbarText), 300);
-    return () => clearTimeout(t);
-  }, [navbarText]);
-
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.feedNews, feedNews), 300);
-    return () => clearTimeout(t);
-  }, [feedNews]);
-
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.heroTitle, heroTitle), 300);
-    return () => clearTimeout(t);
-  }, [heroTitle]);
-
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.heroSubtitle, heroSubtitle), 300);
-    return () => clearTimeout(t);
-  }, [heroSubtitle]);
-
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.heroDescription, heroDescription), 300);
-    return () => clearTimeout(t);
-  }, [heroDescription]);
-
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.portfolioHeading, portfolioHeading), 300);
-    return () => clearTimeout(t);
-  }, [portfolioHeading]);
-
-  // Gallery auto-save removed - now saves to database
 
   if (loading) {
     return (

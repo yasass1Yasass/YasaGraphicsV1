@@ -104,14 +104,6 @@ function loadJSON<T>(key: string, fallback: T): T {
   }
 }
 
-function saveJSON<T>(key: string, value: T) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (error) {
-    console.error("localStorage save failed:", error);
-  }
-}
-
 
 // Compress and resize image to optimize storage
 async function compressImage(file: File, maxWidth = 900, maxHeight = 900, quality = 0.75): Promise<string> {
@@ -263,6 +255,13 @@ const AdminDashboard: React.FC = () => {
   const createGalleryItem = useMutation(api.gallery.create);
   const deleteGalleryItem = useMutation(api.gallery.remove);
   const uploadToCloudinary = useAction(api.cloudinary.uploadFile);
+  
+  // Site settings mutations
+  const updateHeroSection = useMutation(api.siteSettings.updateHeroSection);
+  const updatePortfolioHeadingMutation = useMutation(api.siteSettings.updatePortfolioHeading);
+  const updateNavbarTextMutation = useMutation(api.siteSettings.updateNavbarText);
+  const updateFeedNewsMutation = useMutation(api.siteSettings.updateFeedNews);
+  const updatePortfolioImagesMutation = useMutation(api.siteSettings.updatePortfolioImages);
 
   // Helper function to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
@@ -555,46 +554,73 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Auto-save
+  // Auto-save portfolio images to Convex
   useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.portfolio, portfolio), 400);
-    return () => clearTimeout(t);
-  }, [portfolio]);
+    if (portfolio.length > 0) {
+      const t = setTimeout(async () => {
+        try {
+          await updatePortfolioImagesMutation({ images: portfolio });
+        } catch (err) {
+          console.error("Failed to save portfolio images:", err);
+        }
+      }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [portfolio, updatePortfolioImagesMutation]);
 
+  // Auto-save hero section to Convex
   useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.navbarDisplay, showNavbar), 300);
+    const t = setTimeout(async () => {
+      try {
+        await updateHeroSection({ title: heroTitle, subtitle: heroSubtitle, description: heroDescription });
+      } catch (err) {
+        console.error("Failed to save hero section:", err);
+      }
+    }, 300);
     return () => clearTimeout(t);
-  }, [showNavbar]);
+  }, [heroTitle, heroSubtitle, heroDescription, updateHeroSection]);
 
+  // Auto-save navbar text to Convex
   useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.navbarText, navbarText), 300);
+    const t = setTimeout(async () => {
+      try {
+        if (navbarText) {
+          await updateNavbarTextMutation({ text: navbarText });
+        }
+      } catch (err) {
+        console.error("Failed to save navbar text:", err);
+      }
+    }, 300);
     return () => clearTimeout(t);
-  }, [navbarText]);
+  }, [navbarText, updateNavbarTextMutation]);
 
+  // Auto-save feed news to Convex
   useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.feedNews, feedNews), 300);
+    const t = setTimeout(async () => {
+      try {
+        if (feedNews) {
+          await updateFeedNewsMutation({ feedNews });
+        }
+      } catch (err) {
+        console.error("Failed to save feed news:", err);
+      }
+    }, 300);
     return () => clearTimeout(t);
-  }, [feedNews]);
+  }, [feedNews, updateFeedNewsMutation]);
 
+  // Auto-save portfolio heading to Convex
   useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.heroTitle, heroTitle), 300);
+    const t = setTimeout(async () => {
+      try {
+        if (portfolioHeading) {
+          await updatePortfolioHeadingMutation({ heading: portfolioHeading });
+        }
+      } catch (err) {
+        console.error("Failed to save portfolio heading:", err);
+      }
+    }, 300);
     return () => clearTimeout(t);
-  }, [heroTitle]);
-
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.heroSubtitle, heroSubtitle), 300);
-    return () => clearTimeout(t);
-  }, [heroSubtitle]);
-
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.heroDescription, heroDescription), 300);
-    return () => clearTimeout(t);
-  }, [heroDescription]);
-
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.portfolioHeading, portfolioHeading), 300);
-    return () => clearTimeout(t);
-  }, [portfolioHeading]);
+  }, [portfolioHeading, updatePortfolioHeadingMutation]);
 
   // Gallery auto-save removed - now saves to database
 

@@ -13,6 +13,7 @@ import type * as cloudinary from "../cloudinary.js";
 import type * as designs from "../designs.js";
 import type * as files from "../files.js";
 import type * as gallery from "../gallery.js";
+import type * as siteSettings from "../siteSettings.js";
 import type * as utils from "../utils.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   designs: typeof designs;
   files: typeof files;
   gallery: typeof gallery;
+  siteSettings: typeof siteSettings;
   utils: typeof utils;
 }>;
 

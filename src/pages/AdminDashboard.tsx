@@ -735,7 +735,7 @@ const AdminDashboard: React.FC = () => {
                     </label>
 
                     <label className="block">
-                      <span className="text-xs text-white/70">Upload Image (optional, JPG/PNG)</span>
+                      <span className="text-xs text-white/70">Upload Image (optional, JPG/PNG/WebP)</span>
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
@@ -956,7 +956,7 @@ const AdminDashboard: React.FC = () => {
                     </label>
 
                     <label className="block">
-                      <span className="text-xs text-white/70">Upload Image</span>
+                      <span className="text-xs text-white/70">Upload Image (JPG/PNG/WebP)</span>
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"

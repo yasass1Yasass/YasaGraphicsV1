@@ -50,7 +50,8 @@ const Home: React.FC = () => {
     "🌟 Modern UI/UX & Website Design",
   ]);
 
-  useEffect(() => {
+  // Function to load all data from localStorage
+  const loadAllData = () => {
     try {
       const stored = localStorage.getItem("yasa_portfolio_images");
       if (stored) {
@@ -78,6 +79,18 @@ const Home: React.FC = () => {
     } catch {
       // ignore
     }
+  };
+
+  useEffect(() => {
+    // Initial load
+    loadAllData();
+
+    // Set up polling to detect changes every 500ms
+    const pollInterval = setInterval(() => {
+      loadAllData();
+    }, 500);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   return (

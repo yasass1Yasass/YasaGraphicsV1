@@ -15,7 +15,8 @@ const NavBar: React.FC = () => {
     "✨ Welcome to Yasa Graphics — Expert Design Solutions!",
   ]);
 
-  useEffect(() => {
+  // Function to load navbar text from localStorage
+  const loadNavbarText = () => {
     try {
       const navbarText = localStorage.getItem("yasa_navbar_marquee_text");
       if (navbarText) {
@@ -35,6 +36,18 @@ const NavBar: React.FC = () => {
     } catch {
       // ignore
     }
+  };
+
+  useEffect(() => {
+    // Initial load
+    loadNavbarText();
+
+    // Set up polling to detect changes every 500ms
+    const pollInterval = setInterval(() => {
+      loadNavbarText();
+    }, 500);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   const tickerItems = useMemo(() => {

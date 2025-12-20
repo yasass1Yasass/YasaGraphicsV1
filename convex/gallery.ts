@@ -83,6 +83,12 @@ export const remove = mutation({
       throw new Error("Unauthorized");
     }
 
+    // Check if document exists before deleting
+    const gallery = await ctx.db.get(args.id);
+    if (!gallery) {
+      throw new Error("Gallery item not found");
+    }
+
     await ctx.db.delete(args.id);
     return { success: true };
   },

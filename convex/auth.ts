@@ -21,16 +21,14 @@ export const login = mutation({
       const token = generateToken();
       const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
       
-      // Store token in database
-      await ctx.db.insert("users", {
+      // Store session in Convex database
+      await ctx.db.insert("adminSessions", {
+        token,
         username: ADMIN_USERNAME,
-        password: "", // Not storing password, just using for token
-        role: "admin",
+        expiresAt,
         created_at: Date.now(),
       });
 
-      // Store token in a simple way - we'll use a token table
-      // For now, return token and client stores it
       return {
         success: true,
         token,
@@ -46,37 +44,50 @@ export const login = mutation({
   },
 });
 
-export const verifyToken = query({
+export const verifySession = query({
   args: {
     token: v.string(),
   },
-  handler: async (_ctx, _args) => {
-    // For now, we'll do simple validation
-    // In production, store tokens in database
-    // For this implementation, we'll validate on the client side
-    // and use the token as a simple auth mechanism
+  handler: async (ctx, args) => {
+    // Check if token exists in database and is not expired
+    const session = await ctx.db
+      .query("adminSessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!session) {
+      return { valid: false, admin: null };
+    }
+
+    // Check if session is expired
+    if (session.expiresAt < Date.now()) {
+      await ctx.db.delete(session._id);
+      return { valid: false, admin: null };
+    }
+
     return {
-      valid: true, // Simplified for now
-      admin: {
-        username: ADMIN_USERNAME,
-        role: "admin",
-      },
+      valid: true,
+      admin: { username: session.username, role: "admin" },
     };
   },
 });
 
-// Helper to verify admin (simple check - in production use proper auth)
-export const verifyAdmin = mutation({
+// Logout - remove session from database
+export const logout = mutation({
   args: {
     token: v.string(),
   },
-  handler: async (_ctx, args) => {
-    // Simple validation - in production use proper token validation
-    // For now, just check if token exists and is not empty
-    if (!args.token || args.token.length < 10) {
-      throw new Error("Unauthorized");
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("adminSessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (session) {
+      await ctx.db.delete(session._id);
     }
-    return { valid: true };
+
+    return { success: true };
   },
 });
 

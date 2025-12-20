@@ -37,65 +37,54 @@ const DEFAULT_PORTFOLIO = [
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
-  const [portfolio, setPortfolio] = useState(DEFAULT_PORTFOLIO);
-  const [heroTitle, setHeroTitle] = useState("Welcome to Yasa Graphics");
-  const [heroSubtitle, setHeroSubtitle] = useState("Designs that grow your brand.");
-  const [heroDescription, setHeroDescription] = useState(
-    "We specialize in creating stunning visual identities that make your business stand out. From logo design and branding to social media graphics, posters, banners, video edits, and logo animations — we bring your creative vision to life."
-  );
-  const [portfolioHeading, setPortfolioHeading] = useState("Our Portfolio");
-  const [feedNews, setFeedNews] = useState<string[]>([
-    "🔥 Logo Design • Branding • Social Media Posts",
-    "🎬 Video Editing • Logo Animations • Reels",
-    "🖼 Posters • Banners • Flyers • Print Designs",
-    "👕 T-Shirt & Merchandise Designs",
-    "🌟 Modern UI/UX & Website Design",
-  ]);
+  // Initialize with empty state - will be filled by Convex
+  const [portfolio, setPortfolio] = useState<typeof DEFAULT_PORTFOLIO>([]);
+  const [heroTitle, setHeroTitle] = useState("");
+  const [heroSubtitle, setHeroSubtitle] = useState("");
+  const [heroDescription, setHeroDescription] = useState("");
+  const [portfolioHeading, setPortfolioHeading] = useState("");
+  const [feedNews, setFeedNews] = useState<string[]>([]);
 
   // Fetch site settings from Convex
   const siteSettings = useQuery(api.siteSettings.get);
 
   useEffect(() => {
-    if (siteSettings) {
-      if (siteSettings.heroTitle) setHeroTitle(siteSettings.heroTitle);
-      if (siteSettings.heroSubtitle) setHeroSubtitle(siteSettings.heroSubtitle);
-      if (siteSettings.heroDescription) setHeroDescription(siteSettings.heroDescription);
-      if (siteSettings.portfolioHeading) setPortfolioHeading(siteSettings.portfolioHeading);
-      if (siteSettings.portfolioImages && siteSettings.portfolioImages.length > 0) {
-        setPortfolio(siteSettings.portfolioImages);
-      }
-      if (siteSettings.feedNews) {
-        const items = siteSettings.feedNews.split("|").map((item: string) => item.trim()).filter((item: string) => item.length > 0);
-        if (items.length > 0) setFeedNews(items);
-      }
-    } else {
-      // Fallback to localStorage if Convex data not available
-      try {
-        const stored = localStorage.getItem("yasa_portfolio_images");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) setPortfolio(parsed);
+    if (siteSettings !== undefined) {
+      // Convex has responded (either with data or null)
+      if (siteSettings) {
+        // Use Convex data if available
+        setHeroTitle(siteSettings.heroTitle || "Welcome to Yasa Graphics");
+        setHeroSubtitle(siteSettings.heroSubtitle || "Designs that grow your brand.");
+        setHeroDescription(siteSettings.heroDescription || "We specialize in creating stunning visual identities that make your business stand out. From logo design and branding to social media graphics, posters, banners, video edits, and logo animations — we bring your creative vision to life.");
+        setPortfolioHeading(siteSettings.portfolioHeading || "Our Portfolio");
+        
+        if (siteSettings.portfolioImages && siteSettings.portfolioImages.length > 0) {
+          setPortfolio(siteSettings.portfolioImages);
+        } else {
+          setPortfolio(DEFAULT_PORTFOLIO);
         }
-
-        const storedHeroTitle = localStorage.getItem("yasa_hero_title");
-        const storedHeroSubtitle = localStorage.getItem("yasa_hero_subtitle");
-        const storedHeroDescription = localStorage.getItem("yasa_hero_description");
-        const storedPortfolioHeading = localStorage.getItem("yasa_portfolio_heading");
-
-        if (storedHeroTitle) setHeroTitle(storedHeroTitle);
-        if (storedHeroSubtitle) setHeroSubtitle(storedHeroSubtitle);
-        if (storedHeroDescription) setHeroDescription(storedHeroDescription);
-        if (storedPortfolioHeading) setPortfolioHeading(storedPortfolioHeading);
-
-        const storedFeedNews = localStorage.getItem("yasa_feed_news_marquee");
-        if (storedFeedNews) {
-          const items = storedFeedNews.split("|").map((item: string) => item.trim()).filter((item: string) => item.length > 0);
-          if (items.length > 0) setFeedNews(items);
+        
+        if (siteSettings.feedNews) {
+          const items = siteSettings.feedNews.split("|").map((item: string) => item.trim()).filter((item: string) => item.length > 0);
+          if (items.length > 0) {
+            setFeedNews(items);
+          } else {
+            setFeedNews(["🔥 Logo Design • Branding • Social Media Posts", "🎬 Video Editing • Logo Animations • Reels", "🖼 Posters • Banners • Flyers • Print Designs", "👕 T-Shirt & Merchandise Designs", "🌟 Modern UI/UX & Website Design"]);
+          }
+        } else {
+          setFeedNews(["🔥 Logo Design • Branding • Social Media Posts", "🎬 Video Editing • Logo Animations • Reels", "🖼 Posters • Banners • Flyers • Print Designs", "👕 T-Shirt & Merchandise Designs", "🌟 Modern UI/UX & Website Design"]);
         }
-      } catch {
-        // ignore
+      } else {
+        // Convex returned null (no data saved yet) - use defaults
+        setHeroTitle("Welcome to Yasa Graphics");
+        setHeroSubtitle("Designs that grow your brand.");
+        setHeroDescription("We specialize in creating stunning visual identities that make your business stand out. From logo design and branding to social media graphics, posters, banners, video edits, and logo animations — we bring your creative vision to life.");
+        setPortfolioHeading("Our Portfolio");
+        setPortfolio(DEFAULT_PORTFOLIO);
+        setFeedNews(["🔥 Logo Design • Branding • Social Media Posts", "🎬 Video Editing • Logo Animations • Reels", "🖼 Posters • Banners • Flyers • Print Designs", "👕 T-Shirt & Merchandise Designs", "🌟 Modern UI/UX & Website Design"]);
       }
     }
+    // If siteSettings is still undefined, Convex is loading - don't update state
   }, [siteSettings]);
 
   return (
@@ -236,7 +225,7 @@ const Home: React.FC = () => {
                 >
                   {[...feedNews, ...feedNews].map((t, i) => (
                     <span key={i} className="text-sm sm:text-sm md:text-base font-semibold text-white/85">
-                      <span className="text-[#f7b500] font-extrabold">YASA</span> {t}
+                      {t}
                     </span>
                   ))}
                 </div>

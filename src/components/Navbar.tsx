@@ -21,30 +21,16 @@ const NavBar: React.FC = () => {
   const siteSettings = useQuery(api.siteSettings.get);
 
   useEffect(() => {
-    if (siteSettings?.navbarText) {
-      setOffers([siteSettings.navbarText]);
-    } else {
-      // Fallback to localStorage if Convex data not available
-      try {
-        const navbarText = localStorage.getItem("yasa_navbar_marquee_text");
-        if (navbarText) {
-          setOffers([navbarText]);
-          return;
-        }
-
-        const raw = localStorage.getItem("yasa_admin_ads_v1");
-        if (!raw) return;
-
-        const ads = JSON.parse(raw) as Array<{ text?: string; active?: boolean }>;
-        const active = ads
-          .filter((a) => a && a.active && a.text)
-          .map((a) => a.text as string);
-
-        if (active.length) setOffers(active);
-      } catch {
-        // ignore
+    if (siteSettings !== undefined) {
+      // Convex has responded (either with data or null)
+      if (siteSettings?.navbarText) {
+        setOffers([siteSettings.navbarText]);
+      } else {
+        // Convex returned null or no navbarText - use default
+        setOffers(["✨ Welcome to Yasa Graphics — Expert Design Solutions!"]);
       }
     }
+    // If siteSettings is still undefined, Convex is loading - don't update state
   }, [siteSettings]);
 
   const tickerItems = useMemo(() => {

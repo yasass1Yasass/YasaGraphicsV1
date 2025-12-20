@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Eye, EyeOff, Image as ImageIcon, Plus, Trash2, Settings, LayoutGrid } from "lucide-react";
 import { useQuery, useMutation, useAction } from "convex/react";
@@ -33,19 +33,6 @@ type GalleryItem = {
   video?: string;
   url: string;
   createdAt: number;
-};
-
-const LS_KEYS = {
-  portfolio: "yasa_portfolio_images",
-  navbarDisplay: "yasa_navbar_display",
-  navbarText: "yasa_navbar_marquee_text",
-  feedNews: "yasa_feed_news_marquee",
-  heroTitle: "yasa_hero_title",
-  heroSubtitle: "yasa_hero_subtitle",
-  heroDescription: "yasa_hero_description",
-  portfolioHeading: "yasa_portfolio_heading",
-  listings: "yasa_design_listings_v1",
-  gallery: "yasa_gallery_items",
 };
 
 const GALLERY_CATEGORIES = [
@@ -94,24 +81,6 @@ const DEFAULT_PORTFOLIO: PortfolioItem[] = [
   { id: 5, img: "/Assets/portfolio5.png", title: "Animation" },
 ];
 
-function loadJSON<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveJSON<T>(key: string, value: T) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (error) {
-    console.error("localStorage save failed:", error);
-  }
-}
-
 
 // Compress and resize image to optimize storage
 async function compressImage(file: File, maxWidth = 900, maxHeight = 900, quality = 0.75): Promise<string> {
@@ -157,6 +126,16 @@ const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const initializedRef = useRef(false);
+  const lastSavedRef = useRef({
+    feedNews: "",
+    navbarText: "",
+    heroTitle: "",
+    heroSubtitle: "",
+    heroDescription: "",
+    portfolioHeading: "",
+    portfolio: [] as PortfolioItem[],
+  });
 
   const [tab, setTab] = useState<"listings" | "portfolio" | "gallery" | "navbar" | "hero">("listings");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -193,43 +172,51 @@ const AdminDashboard: React.FC = () => {
   const [galleryUrl, setGalleryUrl] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("adminToken");
-    const username = localStorage.getItem("adminUser");
+    const token = sessionStorage.getItem("adminToken");
 
-    if (!token || !username) {
+    if (!token) {
       navigate("/admin-login");
       return;
     }
 
     setIsAuthenticated(true);
-
-    const storedPortfolio = loadJSON<PortfolioItem[]>(LS_KEYS.portfolio, DEFAULT_PORTFOLIO);
-    const storedNavbarDisplay = loadJSON<boolean>(LS_KEYS.navbarDisplay, true);
-    const storedNavbarText = loadJSON<string>(
-      LS_KEYS.navbarText,
-      "📢 Welcome to Yasa Graphics — Expert Design Solutions!"
-    );
-    const storedFeedNews = loadJSON<string>(LS_KEYS.feedNews, "🔥 Logo Design • Branding • Social Media Posts | 🎬 Video Editing • Logo Animations • Reels | 🖼 Posters • Banners • Flyers • Print Designs | 👕 T-Shirt & Merchandise Designs | 🌟 Modern UI/UX & Website Design");
-    const storedHeroTitle = loadJSON<string>(LS_KEYS.heroTitle, "Welcome to Yasa Graphics");
-    const storedHeroSubtitle = loadJSON<string>(LS_KEYS.heroSubtitle, "Designs that grow your brand.");
-    const storedHeroDescription = loadJSON<string>(LS_KEYS.heroDescription, "We specialize in creating stunning visual identities that make your business stand out. From logo design and branding to social media graphics, posters, banners, video edits, and logo animations — we bring your creative vision to life.");
-    const storedPortfolioHeading = loadJSON<string>(LS_KEYS.portfolioHeading, "Our Portfolio");
-
-    setPortfolio(storedPortfolio);
-    setShowNavbar(storedNavbarDisplay);
-    setNavbarText(storedNavbarText);
-    setFeedNews(storedFeedNews);
-    setHeroTitle(storedHeroTitle);
-    setHeroSubtitle(storedHeroSubtitle);
-    setHeroDescription(storedHeroDescription);
-    setPortfolioHeading(storedPortfolioHeading);
-
     setLoading(false);
   }, [navigate]);
 
-  // Load data from Convex
+  // Load data from Convex - MUST be before useEffect that uses siteSettings
+  const siteSettings = useQuery(api.siteSettings.get);
   const listingsData = useQuery(api.designs.list) || [];
   const galleryData = useQuery(api.gallery.list) || [];
+
+  // Initialize state from Convex siteSettings (only once on first load)
+  useEffect(() => {
+    if (siteSettings !== undefined && !initializedRef.current) {
+      initializedRef.current = true;
+      
+      // Convex has responded (data or null)
+      if (siteSettings) {
+        // Has data
+        setPortfolio(siteSettings.portfolioImages || DEFAULT_PORTFOLIO);
+        setShowNavbar(siteSettings.showNavbar !== false);
+        setNavbarText(siteSettings.navbarText || "📢 Welcome to Yasa Graphics — Expert Design Solutions!");
+        setFeedNews(siteSettings.feedNews || "🔥 Logo Design • Branding • Social Media Posts | 🎬 Video Editing • Logo Animations • Reels | 🖼 Posters • Banners • Flyers • Print Designs | 👕 T-Shirt & Merchandise Designs | 🌟 Modern UI/UX & Website Design");
+        setHeroTitle(siteSettings.heroTitle || "Welcome to Yasa Graphics");
+        setHeroSubtitle(siteSettings.heroSubtitle || "Designs that grow your brand.");
+        setHeroDescription(siteSettings.heroDescription || "We specialize in creating stunning visual identities that make your business stand out. From logo design and branding to social media graphics, posters, banners, video edits, and logo animations — we bring your creative vision to life.");
+        setPortfolioHeading(siteSettings.portfolioHeading || "Our Portfolio");
+      } else {
+        // No data (null) - set defaults
+        setPortfolio(DEFAULT_PORTFOLIO);
+        setShowNavbar(true);
+        setNavbarText("📢 Welcome to Yasa Graphics — Expert Design Solutions!");
+        setFeedNews("🔥 Logo Design • Branding • Social Media Posts | 🎬 Video Editing • Logo Animations • Reels | 🖼 Posters • Banners • Flyers • Print Designs | 👕 T-Shirt & Merchandise Designs | 🌟 Modern UI/UX & Website Design");
+        setHeroTitle("Welcome to Yasa Graphics");
+        setHeroSubtitle("Designs that grow your brand.");
+        setHeroDescription("We specialize in creating stunning visual identities that make your business stand out. From logo design and branding to social media graphics, posters, banners, video edits, and logo animations — we bring your creative vision to life.");
+        setPortfolioHeading("Our Portfolio");
+      }
+    }
+  }, [siteSettings, initializedRef]);
 
   // Convert Convex data to component format
   const listings: DesignListing[] = listingsData.map((item) => ({
@@ -270,6 +257,9 @@ const AdminDashboard: React.FC = () => {
   const updateNavbarTextMutation = useMutation(api.siteSettings.updateNavbarText);
   const updateFeedNewsMutation = useMutation(api.siteSettings.updateFeedNews);
   const updatePortfolioImagesMutation = useMutation(api.siteSettings.updatePortfolioImages);
+  
+  // Auth mutations
+  const logoutMutation = useMutation(api.auth.logout);
 
   // Helper function to convert file to base64
   const fileToBase64 = (file: File): Promise<string> => {
@@ -288,7 +278,7 @@ const AdminDashboard: React.FC = () => {
 
   // Helper function to upload file to Cloudinary
   const uploadFile = async (file: File, folder: string = "yasagraphics"): Promise<string> => {
-    const token = localStorage.getItem("adminToken") || "";
+    const token = sessionStorage.getItem("adminToken") || "";
     
     try {
       // Convert file to base64
@@ -319,9 +309,17 @@ const AdminDashboard: React.FC = () => {
     setTimeout(() => setToast(null), 2800);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminToken");
-    localStorage.removeItem("adminUser");
+  const handleLogout = async () => {
+    const token = sessionStorage.getItem("adminToken");
+    if (token) {
+      try {
+        // Call logout mutation to remove session from Convex
+        await logoutMutation({ token });
+      } catch (err) {
+        console.error("Logout error:", err);
+      }
+    }
+    sessionStorage.removeItem("adminToken");
     navigate("/admin-login");
   };
 
@@ -384,7 +382,7 @@ const AdminDashboard: React.FC = () => {
     }
 
     try {
-      const token = localStorage.getItem("adminToken") || "";
+      const token = sessionStorage.getItem("adminToken") || "";
 
       if (editingId) {
         // Update existing listing
@@ -463,7 +461,7 @@ const AdminDashboard: React.FC = () => {
 
   const deleteListingHandler = async (id: string) => {
     try {
-      const token = localStorage.getItem("adminToken") || "";
+      const token = sessionStorage.getItem("adminToken") || "";
       await deleteListing({
         id: id as Id<"designs">,
         token,
@@ -471,7 +469,12 @@ const AdminDashboard: React.FC = () => {
       showToast("✓ Listing deleted successfully!", "success");
     } catch (err: any) {
       console.error(err);
-      showToast(err.message || "Failed to delete listing.", "error");
+      const errorMsg = err.message || "Failed to delete listing.";
+      if (errorMsg.includes("not found")) {
+        showToast("Listing not found. It may have already been deleted.", "error");
+      } else {
+        showToast(errorMsg, "error");
+      }
     }
   };
 
@@ -524,7 +527,7 @@ const AdminDashboard: React.FC = () => {
     }
 
     try {
-      const token = localStorage.getItem("adminToken") || "";
+      const token = sessionStorage.getItem("adminToken") || "";
       
       await createGalleryItem({
         category,
@@ -550,7 +553,7 @@ const AdminDashboard: React.FC = () => {
 
   const deleteGalleryItemHandler = async (id: string) => {
     try {
-      const token = localStorage.getItem("adminToken") || "";
+      const token = sessionStorage.getItem("adminToken") || "";
       await deleteGalleryItem({
         id: id as Id<"profiling">,
         token,
@@ -558,17 +561,26 @@ const AdminDashboard: React.FC = () => {
       showToast("Gallery item deleted!", "success");
     } catch (err: any) {
       console.error(err);
-      showToast(err.message || "Failed to delete gallery item.", "error");
+      const errorMsg = err.message || "Failed to delete gallery item.";
+      if (errorMsg.includes("not found")) {
+        showToast("Gallery item not found. It may have already been deleted.", "error");
+      } else {
+        showToast(errorMsg, "error");
+      }
     }
   };
 
   // Auto-save portfolio images to Convex
   useEffect(() => {
-    if (portfolio.length > 0) {
+    if (portfolio.length > 0 && initializedRef.current) {
       const t = setTimeout(async () => {
         try {
-          await updatePortfolioImagesMutation({ images: portfolio });
-          saveJSON(LS_KEYS.portfolio, portfolio); // Also save to localStorage as backup
+          // Only save if different from last saved
+          const portfolioChanged = JSON.stringify(portfolio) !== JSON.stringify(lastSavedRef.current.portfolio);
+          if (portfolioChanged) {
+            await updatePortfolioImagesMutation({ images: portfolio });
+            lastSavedRef.current.portfolio = [...portfolio];
+          }
         } catch (err) {
           console.error("Failed to save portfolio images:", err);
         }
@@ -581,10 +593,13 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
-        await updateHeroSection({ title: heroTitle, subtitle: heroSubtitle, description: heroDescription });
-        saveJSON(LS_KEYS.heroTitle, heroTitle);
-        saveJSON(LS_KEYS.heroSubtitle, heroSubtitle);
-        saveJSON(LS_KEYS.heroDescription, heroDescription);
+        // Only save if initialized and at least one field is different from last saved
+        if (initializedRef.current && (heroTitle !== lastSavedRef.current.heroTitle || heroSubtitle !== lastSavedRef.current.heroSubtitle || heroDescription !== lastSavedRef.current.heroDescription)) {
+          await updateHeroSection({ title: heroTitle, subtitle: heroSubtitle, description: heroDescription });
+          lastSavedRef.current.heroTitle = heroTitle;
+          lastSavedRef.current.heroSubtitle = heroSubtitle;
+          lastSavedRef.current.heroDescription = heroDescription;
+        }
       } catch (err) {
         console.error("Failed to save hero section:", err);
       }
@@ -596,9 +611,10 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
-        if (navbarText) {
+        // Only save if initialized, has content, and is different from last saved
+        if (initializedRef.current && navbarText && navbarText !== lastSavedRef.current.navbarText) {
           await updateNavbarTextMutation({ text: navbarText });
-          saveJSON(LS_KEYS.navbarText, navbarText);
+          lastSavedRef.current.navbarText = navbarText;
         }
       } catch (err) {
         console.error("Failed to save navbar text:", err);
@@ -611,9 +627,10 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
-        if (feedNews) {
+        // Only save if initialized, has content, and is different from last saved
+        if (initializedRef.current && feedNews && feedNews !== lastSavedRef.current.feedNews) {
           await updateFeedNewsMutation({ feedNews });
-          saveJSON(LS_KEYS.feedNews, feedNews);
+          lastSavedRef.current.feedNews = feedNews;
         }
       } catch (err) {
         console.error("Failed to save feed news:", err);
@@ -626,9 +643,10 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const t = setTimeout(async () => {
       try {
-        if (portfolioHeading) {
+        // Only save if initialized, has content, and is different from last saved
+        if (initializedRef.current && portfolioHeading && portfolioHeading !== lastSavedRef.current.portfolioHeading) {
           await updatePortfolioHeadingMutation({ heading: portfolioHeading });
-          saveJSON(LS_KEYS.portfolioHeading, portfolioHeading);
+          lastSavedRef.current.portfolioHeading = portfolioHeading;
         }
       } catch (err) {
         console.error("Failed to save portfolio heading:", err);
@@ -637,10 +655,6 @@ const AdminDashboard: React.FC = () => {
     return () => clearTimeout(t);
   }, [portfolioHeading, updatePortfolioHeadingMutation]);
 
-  useEffect(() => {
-    const t = setTimeout(() => saveJSON(LS_KEYS.navbarDisplay, showNavbar), 300);
-    return () => clearTimeout(t);
-  }, [showNavbar]);
 
   if (loading) {
     return (
@@ -1130,7 +1144,7 @@ const AdminDashboard: React.FC = () => {
                     </label>
 
                     <p className="text-xs text-white/50 leading-5">
-                      Changes auto-save to localStorage. Refresh your site to see updates.
+                      Changes auto-save to Convex database. Site updates in real-time.
                     </p>
                   </div>
                 </>
@@ -1194,7 +1208,7 @@ const AdminDashboard: React.FC = () => {
                     </div>
 
                     <p className="text-xs text-white/50 leading-5">
-                      Changes auto-save to localStorage. Refresh your site to see updates.
+                      Changes auto-save to Convex database. Site updates in real-time.
                     </p>
                   </div>
                 </>
@@ -1431,7 +1445,7 @@ const AdminDashboard: React.FC = () => {
                         </div>
 
                         <div className="pt-3 text-xs text-white/50">
-                          👉 Changes auto-save to localStorage. Refresh site to see updates.
+                          👉 Changes auto-save to Convex database. Site updates in real-time.
                         </div>
                       </div>
                     </>

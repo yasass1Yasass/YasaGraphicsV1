@@ -21,9 +21,9 @@ const AdminLogin: React.FC = () => {
     try {
       const data = await login({ username, password });
 
-      // Store token in localStorage
-      localStorage.setItem("adminToken", data.token);
-      localStorage.setItem("adminUser", data.admin.username);
+      // Store token in Convex (login mutation already stores it in DB)
+      // Client only needs to store token in memory/sessionStorage (not localStorage)
+      sessionStorage.setItem("adminToken", data.token);
 
       // Redirect to dashboard
       navigate("/admin-dashboard");

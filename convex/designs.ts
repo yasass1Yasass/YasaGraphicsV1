@@ -159,6 +159,12 @@ export const remove = mutation({
       throw new Error("Unauthorized");
     }
 
+    // Check if document exists before deleting
+    const design = await ctx.db.get(args.id);
+    if (!design) {
+      throw new Error("Design not found");
+    }
+
     await ctx.db.delete(args.id);
     return { success: true };
   },
